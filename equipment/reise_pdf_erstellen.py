@@ -2,7 +2,7 @@
 """
 Equipment: reise_pdf_erstellen.py
 Zweck:  Kombiniertes Reise-PDF aus sights.json + tagesplan.json erstellen.
-        Seite 1: Firmen-Header + Tagesplan-Tabelle
+        Seite 1: Firmen-Header + Tagesablauf als Stop-Cards mit Bullet Points
         Seite 2+: Sehenswürdigkeiten mit Fotos
         Ausgabe: BR-REISE-[ZIELORT]_Garamond_4_.docx + BR-REISE-[ZIELORT].pdf
 Aufruf:
@@ -40,15 +40,14 @@ except ImportError:
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 COLOR_DARK_RED = RGBColor(0x98, 0x00, 0x00)   # #980000 — header background
-COLOR_BURGUNDY = RGBColor(0x6E, 0x14, 0x14)   # #6e1414 — titles / table header bg
+COLOR_BURGUNDY = RGBColor(0x6E, 0x14, 0x14)   # #6e1414 — titles / headings
 COLOR_WHITE    = RGBColor(0xFF, 0xFF, 0xFF)
-COLOR_GRAY_ROW = "F2F2F2"                       # alternating row shading (hex, no #)
+COLOR_GRAY_TEXT = RGBColor(0x66, 0x66, 0x66)  # #666666 — time range text
+COLOR_DARK_GRAY = RGBColor(0x33, 0x33, 0x33)  # #333333 — bullet points
 
 # Table column widths (named constants — avoid magic numbers throughout)
 COL_HEADER_LOGO_W = Cm(3)    # Logo column width in the company header table
 COL_IMAGE_W       = Cm(14)   # Sight image width
-COL_TIME_W        = Cm(4)    # "Uhrzeit" column in the Tagesplan table
-COL_PROGRAM_W     = Cm(13)   # "Programmpunkt" column in the Tagesplan table
 
 COMPANY_LINES = [
     "BELAHMER REISEN",
@@ -157,26 +156,6 @@ def set_table_no_border(table) -> None:
     tblPr.append(tblBorders)
 
 
-def add_subtle_inner_border(cell) -> None:
-    """Add only the bottom border of a cell (subtle horizontal line)."""
-    tc = cell._tc
-    tcPr = tc.get_or_add_tcPr()
-    tcBorders = OxmlElement("w:tcBorders")
-
-    # Only bottom border — light gray, thin
-    bottom = OxmlElement("w:bottom")
-    bottom.set(qn("w:val"), "single")
-    bottom.set(qn("w:sz"), "4")       # half-point units → 0.5 pt
-    bottom.set(qn("w:space"), "0")
-    bottom.set(qn("w:color"), "CCCCCC")
-    tcBorders.append(bottom)
-
-    existing = tcPr.find(qn("w:tcBorders"))
-    if existing is not None:
-        tcPr.remove(existing)
-    tcPr.append(tcBorders)
-
-
 def set_paragraph_space(paragraph, before_pt: int = 0, after_pt: int = 0) -> None:
     """Set space before/after a paragraph (in points)."""
     pPr = paragraph._p.get_or_add_pPr()
@@ -188,6 +167,112 @@ def set_paragraph_space(paragraph, before_pt: int = 0, after_pt: int = 0) -> Non
         spacing.set(qn("w:before"), str(before_pt * 20))   # twips
     if after_pt:
         spacing.set(qn("w:after"), str(after_pt * 20))
+
+
+def add_divider(doc: Document) -> None:
+    """Add a horizontal divider line using a paragraph bottom border."""
+    p = doc.add_paragraph()
+    pPr = p._p.get_or_add_pPr()
+    pBdr = OxmlElement("w:pBdr")
+    bottom = OxmlElement("w:bottom")
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), "6")
+    bottom.set(qn("w:space"), "1")
+    bottom.set(qn("w:color"), "888888")
+    pBdr.append(bottom)
+    pPr.append(pBdr)
+    set_paragraph_space(p, before_pt=4, after_pt=4)
+
+
+def add_stop_heading(doc: Document, text: str, italic: bool = False) -> None:
+    """Add a stop card heading: 12pt, #6e1414, bold (optionally italic)."""
+    p = doc.add_paragraph()
+    set_paragraph_space(p, before_pt=4, after_pt=2)
+    run = p.add_run(text)
+    run.bold = True
+    run.italic = italic
+    run.font.size = Pt(12)
+    run.font.color.rgb = COLOR_BURGUNDY
+
+
+def add_time_range(doc: Document, von: str, bis: str) -> None:
+    """Add a time range line: 10pt, #666666, not bold."""
+    p = doc.add_paragraph()
+    set_paragraph_space(p, before_pt=0, after_pt=2)
+    run = p.add_run(f"{von} – {bis}")
+    run.font.size = Pt(10)
+    run.font.color.rgb = COLOR_GRAY_TEXT
+
+
+def add_bullet(doc: Document, text: str) -> None:
+    """Add a bullet point: 10pt, #333333, left indent 0.4cm, '• ' prefix."""
+    p = doc.add_paragraph()
+    set_paragraph_space(p, before_pt=2, after_pt=2)
+
+    # Left indent via OOXML
+    pPr = p._p.get_or_add_pPr()
+    ind = OxmlElement("w:ind")
+    ind.set(qn("w:left"), "227")   # ~0.4 cm in twips (1 cm = 567 twips)
+    pPr.append(ind)
+
+    bullet_run = p.add_run("• " + text)
+    bullet_run.font.size = Pt(10)
+    bullet_run.font.color.rgb = COLOR_DARK_GRAY
+
+
+def add_return_line(doc: Document, text: str) -> None:
+    """Add a return/arrival line: 11pt, gray, italic."""
+    p = doc.add_paragraph()
+    set_paragraph_space(p, before_pt=2, after_pt=2)
+    run = p.add_run(text)
+    run.italic = True
+    run.font.size = Pt(11)
+    run.font.color.rgb = COLOR_GRAY_TEXT
+
+
+def add_footer(doc: Document) -> None:
+    """Add company footer with page number to the first section."""
+    section = doc.sections[0]
+    footer = section.footer
+    footer.is_linked_to_previous = False
+
+    # Clear existing paragraphs
+    for para in footer.paragraphs:
+        para.clear()
+
+    para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Company info text up to "Seite "
+    run = para.add_run(
+        "Belahmer Reisen | Inh. Nabil Belahmer | Kurpfalzstr 3 | "
+        "67734 Katzweiler | info@belahmer-reisen.de | +49 6301 6689790 | Seite "
+    )
+    run.font.name = "Calibri"
+    run.font.size = Pt(8)
+
+    # PAGE field (automatic page number)
+    run2 = para.add_run()
+    run2.font.name = "Calibri"
+    run2.font.size = Pt(8)
+    r_elem = run2._r
+
+    fldChar_begin = OxmlElement("w:fldChar")
+    fldChar_begin.set(qn("w:fldCharType"), "begin")
+
+    instrText = OxmlElement("w:instrText")
+    instrText.text = "PAGE"
+
+    fldChar_sep = OxmlElement("w:fldChar")
+    fldChar_sep.set(qn("w:fldCharType"), "separate")
+
+    fldChar_end = OxmlElement("w:fldChar")
+    fldChar_end.set(qn("w:fldCharType"), "end")
+
+    r_elem.append(fldChar_begin)
+    r_elem.append(instrText)
+    r_elem.append(fldChar_sep)
+    r_elem.append(fldChar_end)
 
 
 # ---------------------------------------------------------------------------
@@ -202,12 +287,12 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> 
     section.page_width  = Cm(21)
     section.page_height = Cm(29.7)
     section.top_margin    = Cm(1)
-    section.bottom_margin = Cm(1)
+    section.bottom_margin = Cm(1.5)
     section.left_margin   = Cm(2)
     section.right_margin  = Cm(2)
 
     # -----------------------------------------------------------------------
-    # PAGE 1: Header + Tagesplan
+    # PAGE 1: Header + Tagesablauf Stop Cards
     # -----------------------------------------------------------------------
 
     # --- Company header table (2 cols, no border) ---
@@ -260,44 +345,73 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> 
             tcPr.remove(existing)
         tcPr.append(tcMar)
 
-    # --- Title paragraph ---
+    # --- Title paragraph: "Tagesablauf: [ZIEL]" ---
     title_para = doc.add_paragraph()
     set_paragraph_space(title_para, before_pt=12, after_pt=6)
-    title_run = title_para.add_run(f"Tagesreise: {ziel}")
+    title_run = title_para.add_run(f"Tagesablauf: {ziel}")
     title_run.bold = True
     title_run.font.size = Pt(18)
     title_run.font.color.rgb = COLOR_BURGUNDY
 
-    # --- Tagesplan table (2 cols) ---
-    time_rows = tagesplan.get("time_rows", [])
-    tplan_table = doc.add_table(rows=1 + len(time_rows), cols=2)
-    set_table_no_border(tplan_table)
-    tplan_table.autofit = False
-    tplan_table.columns[0].width = COL_TIME_W
-    tplan_table.columns[1].width = COL_PROGRAM_W
+    # -----------------------------------------------------------------------
+    # Stop Cards from new tagesplan.json format
+    # -----------------------------------------------------------------------
 
-    # Header row
-    hdr_row = tplan_table.rows[0]
-    for cell, text in zip(hdr_row.cells, ["Uhrzeit", "Programmpunkt"]):
-        set_cell_bg(cell, "6e1414")
-        set_cell_no_border(cell)
-        para = cell.paragraphs[0]
-        run = para.add_run(text)
-        run.bold = True
-        run.font.color.rgb = COLOR_WHITE
-        run.font.size = Pt(10)
+    # --- Ankunft ---
+    ankunft = tagesplan.get("ankunft", {})
+    ankunft_zeit = ankunft.get("zeit", "")
+    ankunft_aktivitaeten = ankunft.get("aktivitaeten", [])
 
-    # Data rows
-    for idx, row_data in enumerate(time_rows):
-        row = tplan_table.rows[idx + 1]
-        row_color = "FFFFFF" if idx % 2 == 0 else COLOR_GRAY_ROW
+    add_divider(doc)
+    add_stop_heading(doc, f"{ankunft_zeit} – Ankunft in {ziel}")
+    for aktivitaet in ankunft_aktivitaeten:
+        add_bullet(doc, aktivitaet)
 
-        for cell, text in zip(row.cells, [row_data.get("zeit", ""), row_data.get("programm", "")]):
-            set_cell_bg(cell, row_color)
-            add_subtle_inner_border(cell)
-            para = cell.paragraphs[0]
-            run = para.add_run(text)
-            run.font.size = Pt(10)
+    # --- Halte (numbered stops) ---
+    halte = tagesplan.get("halte", [])
+    for halt in halte:
+        nr = halt.get("nr", "")
+        name = halt.get("name", "")
+        von = halt.get("von", "")
+        bis = halt.get("bis", "")
+        aktivitaeten = halt.get("aktivitaeten", [])
+
+        add_divider(doc)
+        add_stop_heading(doc, f"{nr}. Halt: {name}")
+        add_time_range(doc, von, bis)
+        for aktivitaet in aktivitaeten:
+            add_bullet(doc, aktivitaet)
+
+    # --- Optionaler Halt ---
+    optional = tagesplan.get("optional")
+    if optional:
+        opt_name = optional.get("name", "")
+        opt_von = optional.get("von", "")
+        opt_bis = optional.get("bis", "")
+        opt_aktivitaeten = optional.get("aktivitaeten", [])
+
+        add_divider(doc)
+        # Italic, not bold for optional
+        add_stop_heading(doc, f"Optionaler Halt: {opt_name}", italic=True)
+        add_time_range(doc, opt_von, opt_bis)
+        for aktivitaet in opt_aktivitaeten:
+            add_bullet(doc, aktivitaet)
+
+    # --- Abfahrt / Rückfahrt ---
+    abfahrt = tagesplan.get("abfahrt", {})
+    abfahrt_zeit = abfahrt.get("zeit", "")
+    abfahrt_heimatort = abfahrt.get("heimatort", "")
+
+    heimankunft = tagesplan.get("heimankunft")
+
+    add_divider(doc)
+    if abfahrt_zeit and abfahrt_heimatort:
+        add_return_line(doc, f"{abfahrt_zeit} – Rückfahrt nach {abfahrt_heimatort}")
+    if heimankunft:
+        heim_zeit = heimankunft.get("zeit", "")
+        heim_ort = heimankunft.get("heimatort", "")
+        if heim_zeit and heim_ort:
+            add_return_line(doc, f"{heim_zeit} – Geplante Ankunft in {heim_ort}")
 
     # -----------------------------------------------------------------------
     # PAGE BREAK
@@ -348,7 +462,7 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> 
                         buf.seek(0)
                     img_run.add_picture(buf, width=COL_IMAGE_W)
                 except (OSError, ValueError, TypeError) as pil_err:
-                    print(f"  ⚠️  Pillow-Konvertierung fehlgeschlagen ({pil_err}), fallback wird verwendet...")
+                    print(f"  [WARN] Pillow-Konvertierung fehlgeschlagen ({pil_err}), fallback wird verwendet...")
                     img_run.add_picture(image_path, width=COL_IMAGE_W)
             else:
                 img_run.add_picture(image_path, width=COL_IMAGE_W)
@@ -359,6 +473,11 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> 
             ph_run = placeholder.add_run("[Kein Bild verfügbar]")
             ph_run.italic = True
             ph_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+
+    # -----------------------------------------------------------------------
+    # Footer (company info + page number)
+    # -----------------------------------------------------------------------
+    add_footer(doc)
 
     return doc
 
@@ -389,11 +508,11 @@ if __name__ == "__main__":
 
     # --- Validate input files ---
     if not os.path.isfile(args.sights):
-        print(f"❌ Fehler: sights.json nicht gefunden: {args.sights}")
+        print(f"[ERROR] sights.json nicht gefunden: {args.sights}")
         sys.exit(1)
 
     if not os.path.isfile(args.tagesplan):
-        print(f"❌ Fehler: tagesplan.json nicht gefunden: {args.tagesplan}")
+        print(f"[ERROR] tagesplan.json nicht gefunden: {args.tagesplan}")
         sys.exit(1)
 
     # --- Load JSON ---
@@ -401,14 +520,14 @@ if __name__ == "__main__":
         with open(args.sights, "r", encoding="utf-8") as f:
             sights = json.load(f)
     except json.JSONDecodeError as e:
-        print(f"❌ Fehler: sights.json hat kein gültiges JSON-Format: {e}")
+        print(f"[ERROR] sights.json hat kein gueltiges JSON-Format: {e}")
         sys.exit(1)
 
     try:
         with open(args.tagesplan, "r", encoding="utf-8") as f:
             tagesplan = json.load(f)
     except json.JSONDecodeError as e:
-        print(f"❌ Fehler: tagesplan.json hat kein gültiges JSON-Format: {e}")
+        print(f"[ERROR] tagesplan.json hat kein gueltiges JSON-Format: {e}")
         sys.exit(1)
 
     # --- Validate logo ---
@@ -418,11 +537,11 @@ if __name__ == "__main__":
     if not os.path.isfile(logo_path):
         project_root = os.path.dirname(SCRIPT_DIR)
         logo_path2 = os.path.join(project_root, "template", "word", "media", "image1.png")
-        print(f"  ℹ️  Logo nicht gefunden unter {logo_path1}, versuche {logo_path2}...")
+        print(f"  [INFO] Logo nicht gefunden unter {logo_path1}, versuche {logo_path2}...")
         logo_path = logo_path2
 
     if not os.path.isfile(logo_path):
-        print(f"❌ Fehler: Logo nicht gefunden: {logo_path}")
+        print(f"[ERROR] Logo nicht gefunden: {logo_path}")
         sys.exit(1)
 
     # --- Determine output paths (CWD, not script dir) ---
@@ -442,14 +561,14 @@ if __name__ == "__main__":
         logo_path=logo_path,
     )
     doc.save(docx_path)
-    print(f"✅ DOCX erstellt: {docx_filename}")
+    print(f"[OK] DOCX erstellt: {docx_filename}")
 
     # --- Convert to PDF ---
     try:
         from docx2pdf import convert
         convert(docx_path, pdf_path)
     except Exception as e:
-        print(f"❌ Fehler bei der PDF-Konvertierung: {e}")
+        print(f"[ERROR] Fehler bei der PDF-Konvertierung: {e}")
         sys.exit(1)
 
-    print(f"✅ PDF erstellt: {pdf_filename}")
+    print(f"[OK] PDF erstellt: {pdf_filename}")
