@@ -484,7 +484,7 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, dat
     section2.right_margin  = Cm(2)
 
     # Wasserzeichen nur in Sektion 1
-    add_watermark_to_header(section1, color="D4A8A8", text="BELAHMER REISEN")
+    add_watermark_to_header(section1, color="EDD8D8", text="BELAHMER REISEN")
 
     # Sektion 2: eigener leerer Header (kein Wasserzeichen)
     section2.header.is_linked_to_previous = False
@@ -641,10 +641,16 @@ if __name__ == "__main__":
     doc.save(docx_path)
     print(f"[OK] DOCX erstellt: {docx_filename}")
 
-    # --- Convert to PDF ---
+    # --- Convert to PDF via win32com (zuverlässiger als docx2pdf bei komplexen Dokumenten) ---
     try:
-        from docx2pdf import convert
-        convert(docx_path, pdf_path)
+        import win32com.client, time
+        word = win32com.client.Dispatch("Word.Application")
+        word.Visible = False
+        doc_com = word.Documents.Open(docx_path)
+        time.sleep(1)
+        doc_com.SaveAs(pdf_path, FileFormat=17)  # 17 = wdFormatPDF
+        doc_com.Close()
+        word.Quit()
     except Exception as e:
         print(f"[ERROR] Fehler bei der PDF-Konvertierung: {e}")
         sys.exit(1)
