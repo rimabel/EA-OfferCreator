@@ -12,12 +12,18 @@ import argparse
 import json
 import os
 import sys
+import unicodedata
 
 import requests
 
 WIKIPEDIA_API = "https://de.wikipedia.org/w/api.php"
 HEADERS = {"User-Agent": "BelahmerReisen-CommandCenter/1.0 (info@belahmer-reisen.de)"}
-PLACEHOLDER_NAME = "no_image.jpg"
+
+# Fix #6: Use None as placeholder — no phantom filename in JSON
+PLACEHOLDER_IMAGE = None
+
+# Fix #3: Anchor temp folder to the script's own directory, not CWD
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 # ---------------------------------------------------------------------------
@@ -25,12 +31,22 @@ PLACEHOLDER_NAME = "no_image.jpg"
 # ---------------------------------------------------------------------------
 
 def normalize_ziel(ziel: str) -> str:
-    """Zielort in einen dateisystemfreundlichen Ordnernamen umwandeln."""
-    table = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss",
-                            "Ä": "ae", "Ö": "oe", "Ü": "ue"})
-    normalized = ziel.translate(table)
-    normalized = normalized.lower().replace(" ", "-")
-    return normalized
+    """Zielort in einen dateisystemfreundlichen Ordnernamen umwandeln.
+
+    Fix #2: Handles non-German special chars (é, ñ, ç, etc.) by applying
+    NFKD decomposition and stripping combining characters first, then the
+    German umlaut table, then lowercasing and replacing spaces with hyphens.
+    """
+    # Step 1: decompose accented characters (é → e + combining acute, etc.)
+    decomposed = unicodedata.normalize("NFKD", ziel)
+    # Step 2: strip combining/accent characters
+    no_accents = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
+    # Step 3: map German umlauts that survive decomposition intact
+    umlaut_table = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss",
+                                   "Ä": "ae", "Ö": "oe", "Ü": "ue"})
+    normalized = no_accents.translate(umlaut_table)
+    # Step 4: lowercase and spaces → hyphens
+    return normalized.lower().replace(" ", "-")
 
 
 def api_get(params: dict) -> dict:
@@ -65,8 +81,12 @@ def get_coordinates(ziel: str) -> tuple[float, float]:
     sys.exit(1)
 
 
-def geosearch_nearby(lat: float, lng: float, limit: int = 20) -> list[str]:
-    """Geosearch – gibt Liste von Seitentiteln zurück."""
+def geosearch_nearby(lat: float, lng: float, ziel: str, limit: int = 20) -> list[str]:
+    """Geosearch – gibt Liste von Seitentiteln zurück.
+
+    Fix #4: Filters out the city article itself (case-insensitive) so the
+    top-5 list contains only actual sights, not the destination page.
+    """
     data = api_get({
         "action": "query",
         "list": "geosearch",
@@ -76,7 +96,12 @@ def geosearch_nearby(lat: float, lng: float, limit: int = 20) -> list[str]:
         "format": "json",
     })
     results = data.get("query", {}).get("geosearch", [])
-    return [entry["title"] for entry in results]
+    ziel_lower = ziel.strip().lower()
+    return [
+        entry["title"]
+        for entry in results
+        if entry["title"].strip().lower() != ziel_lower
+    ]
 
 
 def get_thumbnail_url(title: str) -> str | None:
@@ -101,7 +126,11 @@ def get_thumbnail_url(title: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 def download_image(url: str, dest_path: str) -> bool:
-    """Bild von URL herunterladen und unter dest_path speichern."""
+    """Bild von URL herunterladen und unter dest_path speichern.
+
+    Fix #1: If the download fails, any partially-written file at dest_path
+    is removed so no stale file is left on disk.
+    """
     try:
         response = requests.get(url, headers=HEADERS, timeout=30, stream=True)
         response.raise_for_status()
@@ -111,6 +140,9 @@ def download_image(url: str, dest_path: str) -> bool:
         return True
     except requests.exceptions.RequestException as exc:
         print(f"  ⚠️ Bild konnte nicht heruntergeladen werden: {exc}")
+        # Remove any partially-written file to avoid stale data
+        if os.path.exists(dest_path):
+            os.remove(dest_path)
         return False
 
 
@@ -127,7 +159,8 @@ def run_normal(ziel: str, folder: str) -> None:
     print(f"   📍 Koordinaten: {lat}, {lng}")
 
     print("🔍 Geosearch – nahegelegene Sehenswürdigkeiten …")
-    titles = geosearch_nearby(lat, lng)
+    # Fix #4: pass ziel so the city article itself is filtered out
+    titles = geosearch_nearby(lat, lng, ziel)
     if not titles:
         print("❌ Fehler: Keine Sehenswürdigkeiten via Geosearch gefunden.")
         sys.exit(1)
@@ -136,18 +169,17 @@ def run_normal(ziel: str, folder: str) -> None:
     sights = []
 
     for idx, title in enumerate(top5, start=1):
-        image_path = os.path.join(folder, f"sight_{idx}.jpg")
+        dest_path = os.path.join(folder, f"sight_{idx}.jpg")
         print(f"  [{idx}/5] {title} …")
         thumb_url = get_thumbnail_url(title)
         if thumb_url:
-            success = download_image(thumb_url, image_path)
-            if not success:
-                image_path = PLACEHOLDER_NAME
+            success = download_image(thumb_url, dest_path)
+            # Fix #1 + #6: on failure use None, not a phantom filename
+            image_value = dest_path.replace(os.sep, "/") if success else PLACEHOLDER_IMAGE
         else:
             print(f"       ⚠️ Kein Bild gefunden – Platzhalter wird verwendet.")
-            image_path = PLACEHOLDER_NAME
-        # Use forward slashes for cross-platform JSON compatibility
-        sights.append({"name": title, "image": image_path.replace(os.sep, "/")})
+            image_value = PLACEHOLDER_IMAGE
+        sights.append({"name": title, "image": image_value})
 
     json_path = os.path.join(folder, "sights.json")
     with open(json_path, "w", encoding="utf-8") as f:
@@ -172,24 +204,25 @@ def run_replace(ziel: str, folder: str, position: int, new_name: str) -> None:
     with open(json_path, "r", encoding="utf-8") as f:
         sights = json.load(f)
 
-    if not (1 <= position <= 5):
-        print("❌ Fehler: Position muss zwischen 1 und 5 liegen.")
+    # Fix #5: bounds check against actual list length, not hard-coded 5
+    if not (1 <= position <= len(sights)):
+        print(f"❌ Fehler: Position muss zwischen 1 und {len(sights)} liegen.")
         sys.exit(1)
 
     idx = position - 1  # 0-basiert
-    image_path = os.path.join(folder, f"sight_{position}.jpg")
+    dest_path = os.path.join(folder, f"sight_{position}.jpg")
 
     print(f"🔄 Ersetze Position {position}: '{sights[idx]['name']}' → '{new_name}' …")
     thumb_url = get_thumbnail_url(new_name)
     if thumb_url:
-        success = download_image(thumb_url, image_path)
-        if not success:
-            image_path = PLACEHOLDER_NAME
+        success = download_image(thumb_url, dest_path)
+        # Fix #1 + #6: on failure use None, not a phantom filename
+        image_value = dest_path.replace(os.sep, "/") if success else PLACEHOLDER_IMAGE
     else:
         print(f"  ⚠️ Kein Bild für '{new_name}' gefunden – Platzhalter wird verwendet.")
-        image_path = PLACEHOLDER_NAME
+        image_value = PLACEHOLDER_IMAGE
 
-    sights[idx] = {"name": new_name, "image": image_path.replace(os.sep, "/")}
+    sights[idx] = {"name": new_name, "image": image_value}
 
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(sights, f, ensure_ascii=False, indent=2)
@@ -216,8 +249,7 @@ def parse_args() -> argparse.Namespace:
         "--replace",
         metavar="N",
         type=int,
-        choices=range(1, 6),
-        help="Position (1–5) ersetzen",
+        help="Position (1–N) ersetzen",
     )
     parser.add_argument(
         "new_name",
@@ -236,7 +268,8 @@ if __name__ == "__main__":
     args = parse_args()
 
     ziel_normalized = normalize_ziel(args.ziel)
-    folder = os.path.join("temp", f"reise-{ziel_normalized}")
+    # Fix #3: temp folder anchored to script directory, not CWD
+    folder = os.path.join(SCRIPT_DIR, "temp", f"reise-{ziel_normalized}")
 
     if args.replace is not None:
         if not args.new_name:
