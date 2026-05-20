@@ -6,7 +6,7 @@
 ---
 
 ## Zweck
-Alle Reisedaten vom Nutzer erfassen, fünf Sehenswürdigkeiten per Wikipedia-Equipment holen und bestätigen lassen sowie den Tagesplan berechnen. Ergebnis ist eine bestätigte `tagesplan.json`, die direkt als Eingabe für `blueprints/reise-pdf-erstellen.md` dient.
+Alle Reisedaten vom Nutzer erfassen, Sehenswürdigkeiten per Wikipedia-Equipment holen und bestätigen lassen sowie den Tagesplan berechnen. Die Anzahl der Sights ist frei wählbar (Standard: 5). Ergebnis ist eine bestätigte `tagesplan.json`, die direkt als Eingabe für `blueprints/reise-pdf-erstellen.md` dient.
 
 ---
 
@@ -55,13 +55,16 @@ Für Ordner- und Dateinamen wird das Reiseziel normiert:
 
 ### Schritt 2 — Sehenswürdigkeiten holen (Wikipedia-Vorschlag)
 
-Equipment-Aufruf:
+Den Nutzer zuerst fragen:
+> „Wie viele Sehenswürdigkeiten soll der Tagesplan umfassen? (Standard: 5)"
+
+Equipment-Aufruf mit gewählter Anzahl:
 
 ```
-PYTHONIOENCODING=utf-8 python equipment/reise_info_wikipedia.py --ziel "[ZIEL]"
+PYTHONIOENCODING=utf-8 python equipment/reise_info_wikipedia.py --ziel "[ZIEL]" --count [N]
 ```
 
-- Die 5 zurückgelieferten Sehenswürdigkeiten als nummerierte Liste ausgeben, z. B.:
+- Die zurückgelieferten Sehenswürdigkeiten als nummerierte Liste ausgeben, z. B.:
 
   ```
   1. Eiffelturm
@@ -72,25 +75,31 @@ PYTHONIOENCODING=utf-8 python equipment/reise_info_wikipedia.py --ziel "[ZIEL]"
   ```
 
 - Den Nutzer fragen:
-  > „Möchtest du eine oder mehrere Sehenswürdigkeiten ersetzen?"
+  > „Möchtest du eine oder mehrere Sehenswürdigkeiten ersetzen oder weitere hinzufügen?"
 
 - **Fehlerfall:** Gibt das Skript einen Fehler (Exit-Code ≠ 0) zurück → **STOP**, Fehlermeldung vollständig an den Nutzer weitergeben. Nicht automatisch neu starten.
 
 ---
 
-### Schritt 3 — Sehenswürdigkeiten ggf. ersetzen
+### Schritt 3 — Sehenswürdigkeiten ggf. anpassen
 
-Für jede gewünschte Ersetzung (z. B. „Ersetze 3 mit Versailles"):
+**Ersetzen** (z. B. „Ersetze 3 mit Versailles"):
 
 ```
 PYTHONIOENCODING=utf-8 python equipment/reise_info_wikipedia.py --ziel "[ZIEL]" --replace [N] "[Neuer Name]"
 ```
 
-- Nach jeder Ersetzung die aktualisierte Liste anzeigen.
-- Ersetzen wiederholen, bis der Nutzer die Liste ausdrücklich bestätigt.
+**Hinzufügen** (z. B. „Füge Versailles hinzu"):
+
+```
+PYTHONIOENCODING=utf-8 python equipment/reise_info_wikipedia.py --ziel "[ZIEL]" --add "[Name]"
+```
+
+- Nach jeder Änderung die aktualisierte Liste anzeigen.
+- Änderungen wiederholen, bis der Nutzer die Liste ausdrücklich bestätigt.
 - **Fehlerfall:** Gibt das Skript einen Fehler zurück → **STOP**, Fehlermeldung an den Nutzer weitergeben.
 
-> ⚠️ **Niemals zur nächsten Ersetzung oder zum nächsten Schritt weitergehen, ohne dass der Nutzer die aktuelle Liste bestätigt hat.**
+> ⚠️ **Niemals zur nächsten Änderung oder zum nächsten Schritt weitergehen, ohne dass der Nutzer die aktuelle Liste bestätigt hat.**
 
 ---
 
@@ -113,7 +122,7 @@ Ankunft in [ZIEL]:
 • [Aktivität 1]
 • [Aktivität 2]
 
-... (für alle 5 Sights)
+... (für alle N Sights — je nach bestätigter Anzahl)
 
 Optional (nur wenn ein optionaler Halt gewünscht ist):
 • [Optionaler Halt Name, Zeitraum, Aktivitäten]
@@ -135,9 +144,7 @@ Format:
   "sights": [
     ["Aktivität 1a", "Aktivität 1b"],
     ["Aktivität 2a", "Aktivität 2b"],
-    ["Aktivität 3a", "Aktivität 3b"],
-    ["Aktivität 4a", "Aktivität 4b"],
-    ["Aktivität 5a", "Aktivität 5b", "Aktivität 5c"]
+    "... (ein Array pro Sight — so viele wie bestätigt)"
   ],
   "optional": {
     "name": "Gärten von Versailles",
@@ -222,7 +229,7 @@ Folgende Daten übergeben (zusammenfassen und dem Nutzer bestätigen):
 ## Qualitätsprüfung
 
 - [ ] Alle Pflichtfelder vorhanden und vollständig?
-- [ ] 5 Sehenswürdigkeiten vom Nutzer bestätigt?
+- [ ] Anzahl Sehenswürdigkeiten mit Nutzer abgestimmt und bestätigt?
 - [ ] Aktivitäten pro Halt generiert und vom Nutzer bestätigt?
 - [ ] `aktivitaeten.json` korrekt erzeugt (`equipment/temp/reise-[normalized-ziel]/aktivitaeten.json`)?
 - [ ] Tagesplan berechnet und vom Nutzer freigegeben?

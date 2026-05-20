@@ -93,7 +93,7 @@ def get_coordinates(ziel: str) -> tuple[float, float]:
     sys.exit(1)
 
 
-def geosearch_nearby(lat: float, lng: float, ziel: str, limit: int = 20) -> list[str]:
+def geosearch_nearby(lat: float, lng: float, ziel: str, limit: int = 50) -> list[str]:
     """Geosearch – gibt Liste von Seitentiteln zurück.
 
     Fix #4: Filters out the city article itself (case-insensitive) so the
@@ -103,7 +103,7 @@ def geosearch_nearby(lat: float, lng: float, ziel: str, limit: int = 20) -> list
         "action": "query",
         "list": "geosearch",
         "gscoord": f"{lat}|{lng}",
-        "gsradius": 10000,
+        "gsradius": 20000,
         "gslimit": limit,
         "format": "json",
     })
@@ -207,8 +207,8 @@ def download_image(url: str, dest_path: str) -> bool:
 # Normalmodus
 # ---------------------------------------------------------------------------
 
-def run_normal(ziel: str, folder: str) -> None:
-    """Top-5-Sehenswürdigkeiten ermitteln, Bilder herunterladen, JSON speichern."""
+def run_normal(ziel: str, folder: str, count: int = 5) -> None:
+    """Top-N-Sehenswürdigkeiten ermitteln, Bilder herunterladen, JSON speichern."""
     os.makedirs(folder, exist_ok=True)
 
     print(f"🔍 Suche Koordinaten für '{ziel}' …")
@@ -222,12 +222,12 @@ def run_normal(ziel: str, folder: str) -> None:
         print("❌ Fehler: Keine Sehenswürdigkeiten via Geosearch gefunden.")
         sys.exit(1)
 
-    top5 = titles[:5]
+    top_n = titles[:count]
     sights = []
 
-    for idx, title in enumerate(top5, start=1):
+    for idx, title in enumerate(top_n, start=1):
         dest_path = os.path.join(folder, f"sight_{idx}.jpg")
-        print(f"  [{idx}/5] {title} …")
+        print(f"  [{idx}/{count}] {title} …")
 
         # Bild: erst DE-Wikipedia, dann EN-Wikipedia als Fallback
         thumb_url = get_thumbnail_url(title)
@@ -254,6 +254,48 @@ def run_normal(ziel: str, folder: str) -> None:
         json.dump(sights, f, ensure_ascii=False, indent=2)
 
     print(f"\n✅ Sights für {ziel} gespeichert: {json_path}")
+    for i, s in enumerate(sights, start=1):
+        print(f"{i}. {s['name']}")
+
+
+# ---------------------------------------------------------------------------
+# Hinzufüge-Modus
+# ---------------------------------------------------------------------------
+
+def run_add(ziel: str, folder: str, new_name: str) -> None:
+    """Einen neuen Eintrag ans Ende von sights.json anhängen."""
+    json_path = os.path.join(folder, "sights.json")
+    if not os.path.exists(json_path):
+        print(f"❌ Fehler: {json_path} nicht gefunden. Bitte zuerst Normalmodus ausführen.")
+        sys.exit(1)
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        sights = json.load(f)
+
+    position = len(sights) + 1
+    dest_path = os.path.join(folder, f"sight_{position}.jpg")
+
+    print(f"➕ Füge hinzu: '{new_name}' an Position {position} …")
+
+    thumb_url = get_thumbnail_url(new_name)
+    if not thumb_url:
+        print(f"  🔍 Kein Bild auf DE-Wikipedia – versuche EN-Wikipedia …")
+        thumb_url = get_thumbnail_url_en(new_name)
+
+    if thumb_url:
+        success = download_image(thumb_url, dest_path)
+        image_value = dest_path.replace(os.sep, "/") if success else PLACEHOLDER_IMAGE
+    else:
+        print(f"  ⚠️ Kein Bild für '{new_name}' gefunden – Platzhalter wird verwendet.")
+        image_value = PLACEHOLDER_IMAGE
+
+    description = get_description(new_name)
+    sights.append({"name": new_name, "image": image_value, "description": description})
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(sights, f, ensure_ascii=False, indent=2)
+
+    print(f"\n✅ Sights für {ziel} aktualisiert: {json_path}")
     for i, s in enumerate(sights, start=1):
         print(f"{i}. {s['name']}")
 
@@ -312,7 +354,7 @@ def run_replace(ziel: str, folder: str, position: int, new_name: str) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Top-5 Sehenswürdigkeiten für ein Reiseziel via Wikipedia ermitteln."
+        description="Sehenswürdigkeiten für ein Reiseziel via Wikipedia ermitteln."
     )
     parser.add_argument(
         "--ziel",
@@ -320,10 +362,22 @@ def parse_args() -> argparse.Namespace:
         help="Reiseziel (z. B. 'Paris')",
     )
     parser.add_argument(
+        "--count",
+        metavar="N",
+        type=int,
+        default=5,
+        help="Anzahl der Sehenswürdigkeiten (Standard: 5)",
+    )
+    parser.add_argument(
         "--replace",
         metavar="N",
         type=int,
         help="Position (1–N) ersetzen",
+    )
+    parser.add_argument(
+        "--add",
+        metavar="NAME",
+        help="Neue Sehenswürdigkeit ans Ende der Liste anhängen",
     )
     parser.add_argument(
         "new_name",
@@ -350,5 +404,7 @@ if __name__ == "__main__":
             print("❌ Fehler: Bei --replace muss ein neuer Name als positionales Argument angegeben werden.")
             sys.exit(1)
         run_replace(args.ziel, folder, args.replace, args.new_name)
+    elif args.add is not None:
+        run_add(args.ziel, folder, args.add)
     else:
-        run_normal(args.ziel, folder)
+        run_normal(args.ziel, folder, count=args.count)
