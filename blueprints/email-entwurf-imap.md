@@ -64,6 +64,13 @@ PYTHONIOENCODING=utf-8 python equipment/email_entwurf_imap.py \
 - PDF-Anhang vorhanden?
 - Text korrekt?
 
+### Schritt 6 — Archivieren
+```bash
+mkdir -p archiv/[ANGEBOTSNUMMER]
+mv [ANGEBOTSNUMMER]_Garamond_4_.docx archiv/[ANGEBOTSNUMMER]/
+mv [ANGEBOTSNUMMER].pdf              archiv/[ANGEBOTSNUMMER]/
+```
+
 ---
 
 ## IMAP-Konfiguration

@@ -8,9 +8,9 @@ token.json
 *.pyc
 __pycache__/
 
-# Generierte Angebote (docx & pdf)
-BR-A*.docx
-BR-A*.pdf
+# Generierte Angebote im Root (noch nicht archiviert)
+/BR-A*.docx
+/BR-A*.pdf
 
 # Arbeitsverzeichnis
 unpacked/

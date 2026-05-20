@@ -103,7 +103,11 @@ Tel.: +49 6301 6689790
    → Equipment: email_entwurf_imap.py ausführen
    → Entwurf landet im Drafts-Ordner
         ↓
-4. Fertig – Nutzer prüft Entwurf im E-Mail-Client
+4. Archivieren
+   → archiv/[ANGEBOTSNUMMER]/ anlegen
+   → .docx + .pdf dorthin verschieben
+        ↓
+5. Fertig – Nutzer prüft Entwurf im E-Mail-Client
 ```
 
 ---
@@ -129,6 +133,7 @@ Tel.: +49 6301 6689790
 | Angebot (PDF) | `BR-A[JAHR]-[NR].pdf` | `BR-A2026-0008.pdf` |
 | Angebotsnummer | `BR-A[JAHR]-[4-stellig]` | `BR-A2026-0008` |
 | Auftragsnummer | `#TTMM001` (je Fahrtdatum) | Hinfahrt `#2205001`, Rückfahrt `#2505001` |
+| Archiv-Ordner | `archiv/[ANGEBOTSNUMMER]/` | `archiv/BR-A2026-0008/` |
 
 ---
 
