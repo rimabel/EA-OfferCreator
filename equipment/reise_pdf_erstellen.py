@@ -24,6 +24,15 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
+# Pillow is optional — used to normalise JPEG ICC-profile headers so that
+# python-docx 1.2.0 can handle APP2-marked JPEGs (0xFFD8FFE2).
+try:
+    from PIL import Image as PilImage  # noqa: F401 — used inside build_document
+    import io as _io                   # noqa: F401 — used inside build_document
+    PILLOW_AVAILABLE = True
+except ImportError:
+    PILLOW_AVAILABLE = False
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -34,6 +43,12 @@ COLOR_DARK_RED = RGBColor(0x98, 0x00, 0x00)   # #980000 — header background
 COLOR_BURGUNDY = RGBColor(0x6E, 0x14, 0x14)   # #6e1414 — titles / table header bg
 COLOR_WHITE    = RGBColor(0xFF, 0xFF, 0xFF)
 COLOR_GRAY_ROW = "F2F2F2"                       # alternating row shading (hex, no #)
+
+# Table column widths (named constants — avoid magic numbers throughout)
+COL_HEADER_LOGO_W = Cm(3)    # Logo column width in the company header table
+COL_IMAGE_W       = Cm(14)   # Sight image width
+COL_TIME_W        = Cm(4)    # "Uhrzeit" column in the Tagesplan table
+COL_PROGRAM_W     = Cm(13)   # "Programmpunkt" column in the Tagesplan table
 
 COMPANY_LINES = [
     "BELAHMER REISEN",
@@ -201,8 +216,8 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> 
     header_table.autofit = False
 
     # Set column widths: logo col = 3cm, info col = fill rest
-    header_table.columns[0].width = Cm(3)
-    header_table.columns[1].width = Cm(14)
+    header_table.columns[0].width = COL_HEADER_LOGO_W
+    header_table.columns[1].width = COL_IMAGE_W
 
     logo_cell = header_table.cell(0, 0)
     info_cell = header_table.cell(0, 1)
@@ -258,8 +273,8 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> 
     tplan_table = doc.add_table(rows=1 + len(time_rows), cols=2)
     set_table_no_border(tplan_table)
     tplan_table.autofit = False
-    tplan_table.columns[0].width = Cm(4)
-    tplan_table.columns[1].width = Cm(13)
+    tplan_table.columns[0].width = COL_TIME_W
+    tplan_table.columns[1].width = COL_PROGRAM_W
 
     # Header row
     hdr_row = tplan_table.rows[0]
@@ -325,22 +340,23 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> 
             # Use Pillow to normalise the image into a BytesIO buffer so that
             # python-docx 1.2.0 can handle JPEGs with ICC-profile APP2 markers
             # (0xFFD8FFE2) which it does not recognise when reading from disk.
-            try:
-                from PIL import Image as PILImage
-                import io as _io
-                with PILImage.open(image_path) as pil_img:
-                    buf = _io.BytesIO()
-                    pil_img.convert("RGB").save(buf, format="JPEG", quality=90)
-                    buf.seek(0)
-                img_run.add_picture(buf, width=Cm(14))
-            except Exception:
-                # Pillow unavailable or conversion failed — try direct path
-                img_run.add_picture(image_path, width=Cm(14))
+            if PILLOW_AVAILABLE:
+                try:
+                    with PilImage.open(image_path) as pil_img:
+                        buf = _io.BytesIO()
+                        pil_img.convert("RGB").save(buf, format="JPEG", quality=90)
+                        buf.seek(0)
+                    img_run.add_picture(buf, width=COL_IMAGE_W)
+                except (OSError, ValueError, TypeError) as pil_err:
+                    print(f"  ⚠️  Pillow-Konvertierung fehlgeschlagen ({pil_err}), fallback wird verwendet...")
+                    img_run.add_picture(image_path, width=COL_IMAGE_W)
+            else:
+                img_run.add_picture(image_path, width=COL_IMAGE_W)
             set_paragraph_space(img_para, after_pt=8)
         else:
-            placeholder = doc.add_paragraph("[Kein Bild verfügbar]")
+            placeholder = doc.add_paragraph()
             set_paragraph_space(placeholder, after_pt=8)
-            ph_run = placeholder.runs[0]
+            ph_run = placeholder.add_run("[Kein Bild verfügbar]")
             ph_run.italic = True
             ph_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
 
@@ -396,20 +412,21 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # --- Validate logo ---
-    logo_path = os.path.join(SCRIPT_DIR, "template", "word", "media", "image1.png")
+    logo_path1 = os.path.join(SCRIPT_DIR, "template", "word", "media", "image1.png")
+    logo_path = logo_path1
     # Resolve relative to project root (one level up from equipment/)
     if not os.path.isfile(logo_path):
-        # Try one level up (project root / template/...)
         project_root = os.path.dirname(SCRIPT_DIR)
-        logo_path = os.path.join(project_root, "template", "word", "media", "image1.png")
+        logo_path2 = os.path.join(project_root, "template", "word", "media", "image1.png")
+        print(f"  ℹ️  Logo nicht gefunden unter {logo_path1}, versuche {logo_path2}...")
+        logo_path = logo_path2
 
     if not os.path.isfile(logo_path):
         print(f"❌ Fehler: Logo nicht gefunden: {logo_path}")
         sys.exit(1)
 
     # --- Determine output paths (CWD, not script dir) ---
-    ziel_normalized = normalize_ziel(args.ziel)   # lowercase — used for temp dirs
-    ziel_for_file   = filename_ziel(args.ziel)    # casing-preserved — used for filenames
+    ziel_for_file = filename_ziel(args.ziel)    # casing-preserved — used for filenames
     cwd = os.getcwd()
     docx_filename = f"BR-REISE-{ziel_for_file}_Garamond_4_.docx"
     pdf_filename  = f"BR-REISE-{ziel_for_file}.pdf"
