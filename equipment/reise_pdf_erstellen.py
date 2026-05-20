@@ -253,6 +253,17 @@ def add_footer(doc: Document) -> None:
     para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
     para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
+    # Top border line in burgundy (#6e1414) — matches title/logo color
+    pPr = para._p.get_or_add_pPr()
+    pBdr = OxmlElement("w:pBdr")
+    top_border = OxmlElement("w:top")
+    top_border.set(qn("w:val"), "single")
+    top_border.set(qn("w:sz"), "6")
+    top_border.set(qn("w:space"), "4")
+    top_border.set(qn("w:color"), "6E1414")
+    pBdr.append(top_border)
+    pPr.append(pBdr)
+
     # Company info text up to "Seite "
     run = para.add_run(
         "Belahmer Reisen | Inh. Nabil Belahmer | Kurpfalzstr 3 | "
@@ -354,18 +365,11 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, dat
         line_run.font.size = Pt(10)
         line_run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
 
-    # --- Date line (right-aligned, like offer template) ---
-    if datum:
-        date_para = doc.add_paragraph()
-        set_paragraph_space(date_para, before_pt=6, after_pt=0)
-        date_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        date_run = date_para.add_run(f"Katzweiler, den {datum}")
-        date_run.font.size = Pt(10)
-
-    # --- Title paragraph: "Tagesablauf: [ZIEL]" ---
+    # --- Title paragraph: "Tagesablauf: [ZIEL] [DATUM]" ---
     title_para = doc.add_paragraph()
     set_paragraph_space(title_para, before_pt=24, after_pt=6)
-    title_run = title_para.add_run(f"Tagesablauf: {ziel}")
+    title_text = f"Tagesablauf: {ziel}  {datum}".strip() if datum else f"Tagesablauf: {ziel}"
+    title_run = title_para.add_run(title_text)
     title_run.bold = True
     title_run.font.size = Pt(18)
     title_run.font.color.rgb = COLOR_BURGUNDY
