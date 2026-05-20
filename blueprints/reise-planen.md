@@ -94,7 +94,66 @@ PYTHONIOENCODING=utf-8 python equipment/reise_info_wikipedia.py --ziel "[ZIEL]" 
 
 ---
 
-### Schritt 4 — Tagesplan berechnen
+### Schritt 4 — Aktivitäten pro Halt generieren
+
+Der Architect generiert für jeden bestätigten Halt 2–3 typische Aktivitäten und einen Ankunfts-Block.
+
+**Vorlage (Architect erstellt diesen Inhalt):**
+
+```
+Ankunft in [ZIEL]:
+• [z.B. Kurze Pause für die Gäste]
+• [z.B. Organisation & Erklärung des Programms]
+
+1. Halt: [Name Sight 1]:
+• [Aktivität 1]
+• [Aktivität 2]
+
+2. Halt: [Name Sight 2]:
+• [Aktivität 1]
+• [Aktivität 2]
+
+... (für alle 5 Sights)
+
+Optional (nur wenn ein optionaler Halt gewünscht ist):
+• [Optionaler Halt Name, Zeitraum, Aktivitäten]
+```
+
+---
+
+Der Architect fragt:
+> „Sollen diese Aktivitäten so übernommen werden? (Kann vor der PDF-Erstellung angepasst werden)"
+
+Nach Bestätigung schreibt der Architect die Datei:
+`equipment/temp/reise-[normalized-ziel]/aktivitaeten.json`
+
+Format:
+
+```json
+{
+  "ankunft": ["Kurze Pause für die Gäste", "Organisation & Erklärung des Programms"],
+  "sights": [
+    ["Aktivität 1a", "Aktivität 1b"],
+    ["Aktivität 2a", "Aktivität 2b"],
+    ["Aktivität 3a", "Aktivität 3b"],
+    ["Aktivität 4a", "Aktivität 4b"],
+    ["Aktivität 5a", "Aktivität 5b", "Aktivität 5c"]
+  ],
+  "optional": {
+    "name": "Gärten von Versailles",
+    "von": "19:45",
+    "bis": "20:30",
+    "aktivitaeten": ["Nur wenn genügend Zeit vorhanden ist", "Abendlicher Spaziergang"]
+  }
+}
+```
+
+> ⚠️ Das `optional`-Feld wird **nur hinzugefügt**, wenn ein optionaler Halt gewünscht ist.  
+> ⚠️ **Ohne ausdrückliche Bestätigung der Aktivitäten nicht zum nächsten Schritt weitergehen.**
+
+---
+
+### Schritt 5 — Tagesplan berechnen
 
 Equipment-Aufruf (vollständig mit allen Parametern):
 
@@ -105,7 +164,8 @@ PYTHONIOENCODING=utf-8 python equipment/reise_tagesplan.py \
   --abfahrt "[ABFAHRTSZEIT]" \
   --heimatort "[HEIMATORT]" \
   --heimankunft "[HEIMANKUNFT]" \
-  --json "equipment/temp/reise-[normalized-ziel]/sights.json"
+  --json "equipment/temp/reise-[normalized-ziel]/sights.json" \
+  --aktivitaeten "equipment/temp/reise-[normalized-ziel]/aktivitaeten.json"
 ```
 
 > 📝 **Hinweis:** `--heimankunft` nur angeben, wenn der Nutzer eine geplante Ankunftszeit zu Hause genannt hat. Andernfalls den Parameter weglassen.
@@ -114,7 +174,7 @@ PYTHONIOENCODING=utf-8 python equipment/reise_tagesplan.py \
 
 ---
 
-### Schritt 5 — Tagesplan präsentieren und bestätigen
+### Schritt 6 — Tagesplan präsentieren und bestätigen  <!-- ehemals Schritt 5 -->
 
 - Den berechneten Tagesplan als Tabelle ausgeben, z. B.:
 
@@ -140,7 +200,7 @@ PYTHONIOENCODING=utf-8 python equipment/reise_tagesplan.py \
 
 ---
 
-### Schritt 6 — Weiter mit PDF-Erstellung
+### Schritt 7 — Weiter mit PDF-Erstellung
 
 Sobald der Tagesplan bestätigt ist, mit dem nächsten Blueprint fortfahren:
 
@@ -155,6 +215,7 @@ Folgende Daten übergeben (zusammenfassen und dem Nutzer bestätigen):
 | Kundenname | `[KUNDENNAME]` |
 | Kunden-E-Mail | `[EMAIL]` |
 | JSON-Pfad (Tagesplan) | `equipment/temp/reise-[normalized-ziel]/tagesplan.json` |
+| JSON-Pfad (Aktivitäten) | `equipment/temp/reise-[normalized-ziel]/aktivitaeten.json` |
 
 ---
 
@@ -162,8 +223,10 @@ Folgende Daten übergeben (zusammenfassen und dem Nutzer bestätigen):
 
 - [ ] Alle Pflichtfelder vorhanden und vollständig?
 - [ ] 5 Sehenswürdigkeiten vom Nutzer bestätigt?
+- [ ] Aktivitäten pro Halt generiert und vom Nutzer bestätigt?
+- [ ] `aktivitaeten.json` korrekt erzeugt (`equipment/temp/reise-[normalized-ziel]/aktivitaeten.json`)?
 - [ ] Tagesplan berechnet und vom Nutzer freigegeben?
-- [ ] JSON-Datei korrekt erzeugt (`equipment/temp/reise-[normalized-ziel]/tagesplan.json`)?
+- [ ] `tagesplan.json` korrekt erzeugt (`equipment/temp/reise-[normalized-ziel]/tagesplan.json`)?
 - [ ] Übergabedaten für nächsten Blueprint vollständig?
 
 ---
