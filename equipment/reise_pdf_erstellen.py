@@ -240,9 +240,40 @@ def add_return_line(doc: Document, text: str) -> None:
     run.font.color.rgb = COLOR_GRAY_TEXT
 
 
-def add_footer(doc: Document) -> None:
-    """Add company footer with page number to the first section."""
-    section = doc.sections[0]
+def add_watermark_to_header(section, color: str = "D4A8A8", text: str = "BELAHMER REISEN") -> None:
+    """Add diagonal VML text watermark to a section header."""
+    from lxml import etree
+    header = section.header
+    header.is_linked_to_previous = False
+    for para in header.paragraphs:
+        para.clear()
+    para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+    watermark_xml = (
+        '<w:r xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+        ' xmlns:v="urn:schemas-microsoft-com:vml">'
+        '<w:rPr><w:noProof/></w:rPr>'
+        '<w:pict>'
+        f'<v:shape id="WaterMark" type="#_x0000_t136"'
+        f' style="position:absolute;margin-left:0;margin-top:0;'
+        f'width:527.85pt;height:65.95pt;z-index:-251656192;'
+        f'mso-wrap-style:none;'
+        f'mso-position-horizontal:center;mso-position-horizontal-relative:margin;'
+        f'mso-position-vertical:center;mso-position-vertical-relative:margin;'
+        f'rotation:315"'
+        f' fillcolor="#{color}" stroked="f">'
+        f'<v:fill on="t" focussize="0,0"/>'
+        f'<v:path textpathok="t"/>'
+        f'<v:textpath on="t" string="{text}"'
+        f' style="font-family:&quot;Calibri&quot;;font-size:1pt"/>'
+        f'</v:shape>'
+        '</w:pict>'
+        '</w:r>'
+    )
+    para._p.append(etree.fromstring(watermark_xml))
+
+
+def add_footer(section) -> None:
+    """Add company footer with page number to a given section."""
     footer = section.footer
     footer.is_linked_to_previous = False
 
@@ -435,9 +466,32 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, dat
             add_return_line(doc, f"{heim_zeit} – Geplante Ankunft in {heim_ort}")
 
     # -----------------------------------------------------------------------
-    # PAGE BREAK
+    # SECTION BREAK: Sektion 1 (Tagesablauf, mit Wasserzeichen) endet hier.
+    # Sektion 2 (Sehenswürdigkeiten, kein Wasserzeichen) beginnt auf neuer Seite.
     # -----------------------------------------------------------------------
-    doc.add_page_break()
+    from docx.enum.section import WD_SECTION_START
+    doc.add_section(WD_SECTION_START.NEW_PAGE)
+
+    section1 = doc.sections[0]   # Tagesablauf
+    section2 = doc.sections[1]   # Sehenswürdigkeiten
+
+    # Sektion 2: gleiche Seitenränder wie Sektion 1
+    section2.page_width    = Cm(21)
+    section2.page_height   = Cm(29.7)
+    section2.top_margin    = Cm(1)
+    section2.bottom_margin = Cm(1.5)
+    section2.left_margin   = Cm(2)
+    section2.right_margin  = Cm(2)
+
+    # Wasserzeichen nur in Sektion 1
+    add_watermark_to_header(section1, color="D4A8A8", text="BELAHMER REISEN")
+
+    # Sektion 2: eigener leerer Header (kein Wasserzeichen)
+    section2.header.is_linked_to_previous = False
+
+    # Footer: Sektion 1 bekommt den Footer, Sektion 2 erbt ihn
+    add_footer(section1)
+    section2.footer.is_linked_to_previous = True
 
     # -----------------------------------------------------------------------
     # PAGE 2+: Sehenswürdigkeiten
@@ -499,11 +553,6 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, dat
         # Description below image (if available)
         if description:
             add_sight_description(doc, description)
-
-    # -----------------------------------------------------------------------
-    # Footer (company info + page number)
-    # -----------------------------------------------------------------------
-    add_footer(doc)
 
     return doc
 
