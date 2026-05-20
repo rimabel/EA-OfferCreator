@@ -12,8 +12,24 @@ __pycache__/
 /BR-A*.docx
 /BR-A*.pdf
 
+# Generierte Reise-Dateien im Root (noch nicht archiviert)
+/BR-REISE-*.docx
+/BR-REISE-*.pdf
+/~$*.docx
+
+# Temporärer Arbeitsordner (Bilder, JSONs)
+equipment/temp/
+temp/
+
+# Archiv (generierte Ausgaben)
+archiv/
+
+# Upload-Ordner
+uploads/
+
 # Arbeitsverzeichnis
 unpacked/
 
 # Temporäre Dateien
 email_text.txt
+email_reise_text.txt
