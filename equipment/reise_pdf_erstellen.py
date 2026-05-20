@@ -54,6 +54,8 @@ def normalize_ziel(ziel: str) -> str:
 
     Applies NFKD decomposition, strips combining diacritics, maps German
     umlauts, lowercases and replaces spaces with hyphens.
+    Used for temp-dir/folder paths (kept lowercase for consistency with
+    sibling scripts).
     """
     decomposed = unicodedata.normalize("NFKD", ziel)
     no_accents = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
@@ -63,6 +65,27 @@ def normalize_ziel(ziel: str) -> str:
     })
     normalized = no_accents.translate(umlaut_table)
     return normalized.lower().replace(" ", "-")
+
+
+def filename_ziel(ziel: str) -> str:
+    """Convert destination name to the casing-preserved filename segment.
+
+    Same as normalize_ziel() but preserves original casing — used for
+    output filenames such as BR-REISE-Paris_Garamond_4_.docx.
+
+    Examples:
+        filename_ziel("Paris")       -> "Paris"
+        filename_ziel("Straßburg")   -> "Strassburg"
+        filename_ziel("Bad Dürkheim") -> "Bad-Duerkheim"
+    """
+    decomposed = unicodedata.normalize("NFKD", ziel)
+    no_accents = "".join(ch for ch in decomposed if unicodedata.category(ch) != "Mn")
+    umlaut_table = str.maketrans({
+        "ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss",
+        "Ä": "Ae", "Ö": "Oe", "Ü": "Ue",
+    })
+    normalized = no_accents.translate(umlaut_table)
+    return normalized.replace(" ", "-")
 
 
 def set_cell_bg(cell, hex_color: str) -> None:
@@ -385,17 +408,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # --- Determine output paths (CWD, not script dir) ---
-    ziel_normalized = normalize_ziel(args.ziel)
+    ziel_normalized = normalize_ziel(args.ziel)   # lowercase — used for temp dirs
+    ziel_for_file   = filename_ziel(args.ziel)    # casing-preserved — used for filenames
     cwd = os.getcwd()
-    docx_filename = f"BR-REISE-{args.ziel.replace(' ', '-')}_Garamond_4_.docx"
-    pdf_filename  = f"BR-REISE-{args.ziel.replace(' ', '-')}.pdf"
-
-    # Normalize the display name part of the filename the same way
-    # Spec: [ZIELORT] = normalized (spaces→hyphens etc.) but display name is preserved in the
-    # Ziel argument so we build the filename directly from normalized ziel.
-    # Re-read spec: "BR-REISE-[ZIELORT]" where ZIELORT is normalized.
-    docx_filename = f"BR-REISE-{ziel_normalized}_Garamond_4_.docx"
-    pdf_filename  = f"BR-REISE-{ziel_normalized}.pdf"
+    docx_filename = f"BR-REISE-{ziel_for_file}_Garamond_4_.docx"
+    pdf_filename  = f"BR-REISE-{ziel_for_file}.pdf"
 
     docx_path = os.path.join(cwd, docx_filename)
     pdf_path  = os.path.join(cwd, pdf_filename)
