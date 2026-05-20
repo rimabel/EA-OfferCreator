@@ -11,7 +11,8 @@ Aufruf:
       --abfahrt "20:30" \\
       --heimatort "Völklingen" \\
       --heimankunft "02:30" \\
-      --json "equipment/temp/reise-paris/sights.json"
+      --json "equipment/temp/reise-paris/sights.json" \\
+      --aktivitaeten "equipment/temp/reise-paris/aktivitaeten.json"
 """
 
 import argparse
@@ -76,6 +77,29 @@ def is_lunch_overlap(start: datetime, end: datetime) -> bool:
     return start < lunch_end and end > lunch_start
 
 
+def load_aktivitaeten(path: str | None) -> dict:
+    """Load aktivitaeten.json if path is given and file exists.
+
+    Returns a dict with keys 'ankunft', 'sights', and optionally 'optional'.
+    Falls back to empty lists if path is None or file does not exist.
+    """
+    empty = {"ankunft": [], "sights": []}
+
+    if not path:
+        print("ℹ️  --aktivitaeten nicht angegeben – leere Aktivitätenlisten werden verwendet.")
+        return empty
+
+    if not os.path.exists(path):
+        print(f"ℹ️  aktivitaeten.json nicht gefunden ({path}) – leere Listen werden verwendet.")
+        return empty
+
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    print(f"✅ aktivitaeten.json geladen: {path}")
+    return data
+
+
 # ---------------------------------------------------------------------------
 # Core calculation
 # ---------------------------------------------------------------------------
@@ -87,8 +111,9 @@ def calculate_tagesplan(
     heimatort: str,
     heimankunft: datetime | None,
     sights: list[dict],
-) -> list[dict]:
-    """Build the list of time_rows for the day plan.
+    aktivitaeten: dict,
+) -> dict:
+    """Build the structured day plan dict.
 
     Scheduling maths
     ----------------
@@ -96,7 +121,7 @@ def calculate_tagesplan(
     net_time  = (available - (n_sights - 1) * BUFFER_BETWEEN) / n_sights
     net_time  clipped to [MIN_PER_SIGHT, MAX_PER_SIGHT]
 
-    If even MIN_PER_SIGHT × n_sights + (n_sights - 1) × BUFFER_BETWEEN
+    If even MIN_PER_SIGHT x n_sights + (n_sights - 1) x BUFFER_BETWEEN
     exceeds available time, n_sights is reduced until it fits (warns user).
     """
     total_available = int((abfahrt - ankunft).total_seconds() // 60) \
@@ -129,52 +154,76 @@ def calculate_tagesplan(
     else:
         net_time = 0
 
-    rows: list[dict] = []
+    # --- Aktivitaeten data ---
+    ankunft_aktivitaeten = aktivitaeten.get("ankunft", [])
+    sights_aktivitaeten = aktivitaeten.get("sights", [])
 
-    # --- Row 1: Arrival ---
-    rows.append({
-        "zeit": fmt_time(ankunft),
-        "programm": f"Ankunft in {ziel} & kurze Pause",
-    })
-
-    # --- Sight slots ---
+    # --- Build halte (sight stops) ---
+    halte: list[dict] = []
     cursor = ankunft + timedelta(minutes=ANKUNFT_PAUSE)
     mittagspause_used = False
 
     for i in range(n_sights):
-        sight_name = sights[i]["name"]
+        sight = sights[i]
+        sight_name = sight["name"]
+        sight_image = sight.get("image", None)
         slot_start = cursor
         slot_end = cursor + timedelta(minutes=net_time)
 
-        label = sight_name
+        halt: dict = {
+            "nr": i + 1,
+            "name": sight_name,
+            "von": fmt_time(slot_start),
+            "bis": fmt_time(slot_end),
+            "aktivitaeten": sights_aktivitaeten[i] if i < len(sights_aktivitaeten) else [],
+            "image": sight_image,
+        }
+
         if not mittagspause_used and is_lunch_overlap(slot_start, slot_end):
-            label += " (Mittagspause)"
+            halt["mittagspause"] = True
             mittagspause_used = True
 
-        rows.append({
-            "zeit": f"{fmt_time(slot_start)} – {fmt_time(slot_end)}",
-            "programm": label,
-        })
+        halte.append(halt)
 
         if i < n_sights - 1:
             cursor = slot_end + timedelta(minutes=BUFFER_BETWEEN)
         else:
             cursor = slot_end
 
-    # --- Departure row ---
-    rows.append({
+    # --- Assemble top-level plan dict ---
+    plan: dict = {
+        "ziel": ziel,
+        "ankunft": {
+            "zeit": fmt_time(ankunft),
+            "aktivitaeten": ankunft_aktivitaeten,
+        },
+        "halte": halte,
+    }
+
+    # Optional stop – only include if present in aktivitaeten.json
+    optional_data = aktivitaeten.get("optional")
+    if optional_data:
+        plan["optional"] = {
+            "name": optional_data.get("name", ""),
+            "von": optional_data.get("von", ""),
+            "bis": optional_data.get("bis", ""),
+            "aktivitaeten": optional_data.get("aktivitaeten", []),
+        }
+
+    # Departure
+    plan["abfahrt"] = {
         "zeit": fmt_time(abfahrt),
-        "programm": f"Abfahrt Richtung {heimatort}",
-    })
+        "heimatort": heimatort,
+    }
 
-    # --- Optional home arrival row ---
+    # Home arrival – only if provided
     if heimankunft is not None:
-        rows.append({
+        plan["heimankunft"] = {
             "zeit": fmt_time(heimankunft),
-            "programm": f"Geplante Ankunft in {heimatort}",
-        })
+            "heimatort": heimatort,
+        }
 
-    return rows
+    return plan
 
 
 # ---------------------------------------------------------------------------
@@ -197,6 +246,8 @@ def parse_args() -> argparse.Namespace:
                         help="Geschätzte Heimankunftszeit (HH:MM, optional)")
     parser.add_argument("--json", required=True, dest="json_path",
                         help="Pfad zur sights.json aus Task 1")
+    parser.add_argument("--aktivitaeten", default=None, dest="aktivitaeten_path",
+                        help="Pfad zur aktivitaeten.json (optional)")
     return parser.parse_args()
 
 
@@ -239,6 +290,9 @@ if __name__ == "__main__":
         print("❌ Fehler: sights.json hat ein ungültiges Format")
         sys.exit(1)
 
+    # --- Load aktivitaeten.json (optional) ---
+    aktivitaeten = load_aktivitaeten(args.aktivitaeten_path)
+
     # --- Compute output folder (anchored to script directory) ---
     ziel_normalized = normalize_ziel(args.ziel)
     out_folder = os.path.join(SCRIPT_DIR, "temp", f"reise-{ziel_normalized}")
@@ -246,25 +300,46 @@ if __name__ == "__main__":
     out_path = os.path.join(out_folder, "tagesplan.json")
 
     # --- Build the plan ---
-    time_rows = calculate_tagesplan(
+    plan = calculate_tagesplan(
         ziel=args.ziel,
         ankunft=ankunft_dt,
         abfahrt=abfahrt_dt,
         heimatort=args.heimatort,
         heimankunft=heimankunft_dt,
         sights=sights,
+        aktivitaeten=aktivitaeten,
     )
 
     # --- Save JSON ---
-    payload = {"time_rows": time_rows}
     with open(out_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+        json.dump(plan, f, ensure_ascii=False, indent=2)
 
     # --- Stdout summary ---
     print(f"✅ Tagesplan für {args.ziel} erstellt: {out_path}")
-    print(f"{'Uhrzeit':<14}| Programmpunkt")
+    print(f"\n{'Uhrzeit':<14}| Programmpunkt")
     print(f"{'-' * 14}| {'-' * 40}")
-    for row in time_rows:
-        # Use compact dash (no spaces) in table display, wide dash in JSON
-        zeit_display = row["zeit"].replace(" – ", "-")
-        print(f"{zeit_display:<14}| {row['programm']}")
+
+    # Ankunft row
+    print(f"{plan['ankunft']['zeit']:<14}| Ankunft in {args.ziel} & kurze Pause")
+
+    # Sight rows
+    for halt in plan["halte"]:
+        zeit_display = f"{halt['von']}-{halt['bis']}"
+        label = halt["name"]
+        if halt.get("mittagspause"):
+            label += " (Mittagspause)"
+        print(f"{zeit_display:<14}| {label}")
+
+    # Optional row (if present)
+    if "optional" in plan:
+        opt = plan["optional"]
+        zeit_display = f"{opt['von']}-{opt['bis']}"
+        print(f"{zeit_display:<14}| {opt['name']} (optional)")
+
+    # Abfahrt row
+    print(f"{plan['abfahrt']['zeit']:<14}| Abfahrt Richtung {plan['abfahrt']['heimatort']}")
+
+    # Heimankunft row
+    if "heimankunft" in plan:
+        print(f"{plan['heimankunft']['zeit']:<14}| "
+              f"Geplante Ankunft in {plan['heimankunft']['heimatort']}")
