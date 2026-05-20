@@ -16,7 +16,8 @@ import unicodedata
 
 import requests
 
-WIKIPEDIA_API = "https://de.wikipedia.org/w/api.php"
+WIKIPEDIA_API    = "https://de.wikipedia.org/w/api.php"
+WIKIPEDIA_API_EN = "https://en.wikipedia.org/w/api.php"
 HEADERS = {"User-Agent": "BelahmerReisen-CommandCenter/1.0 (info@belahmer-reisen.de)"}
 
 # Fix #6: Use None as placeholder — no phantom filename in JSON
@@ -49,15 +50,26 @@ def normalize_ziel(ziel: str) -> str:
     return normalized.lower().replace(" ", "-")
 
 
-def api_get(params: dict) -> dict:
+def api_get(params: dict, api_url: str = WIKIPEDIA_API) -> dict:
     """Einzelne Wikipedia-API-Anfrage; bei Netzwerkfehler: Fehler ausgeben + exit(1)."""
     try:
-        response = requests.get(WIKIPEDIA_API, params=params, headers=HEADERS, timeout=15)
+        response = requests.get(api_url, params=params, headers=HEADERS, timeout=15)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as exc:
         print(f"❌ Netzwerkfehler: {exc}")
         sys.exit(1)
+
+
+def api_get_safe(params: dict, api_url: str = WIKIPEDIA_API) -> dict | None:
+    """Wie api_get, gibt aber None zurück statt exit(1) — für optionale Abfragen."""
+    try:
+        response = requests.get(api_url, params=params, headers=HEADERS, timeout=15)
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as exc:
+        print(f"  ⚠️ Anfrage fehlgeschlagen: {exc}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -121,6 +133,51 @@ def get_thumbnail_url(title: str) -> str | None:
     return None
 
 
+def get_thumbnail_url_en(title: str) -> str | None:
+    """Thumbnail-URL aus der englischen Wikipedia (Fallback wenn DE kein Bild hat)."""
+    data = api_get_safe({
+        "action": "query",
+        "titles": title,
+        "prop": "pageimages",
+        "pithumbsize": 800,
+        "format": "json",
+    }, api_url=WIKIPEDIA_API_EN)
+    if data is None:
+        return None
+    pages = data.get("query", {}).get("pages", {})
+    for page in pages.values():
+        if page.get("pageid", -1) == -1:
+            return None  # Artikel nicht gefunden in EN
+        thumb = page.get("thumbnail", {})
+        if thumb:
+            return thumb.get("source")
+    return None
+
+
+def get_description(title: str) -> str | None:
+    """Kurzbeschreibung (max. 2 Sätze) aus der deutschen Wikipedia holen."""
+    data = api_get_safe({
+        "action": "query",
+        "titles": title,
+        "prop": "extracts",
+        "exintro": True,
+        "exsentences": 2,
+        "explaintext": True,
+        "format": "json",
+    })
+    if data is None:
+        return None
+    pages = data.get("query", {}).get("pages", {})
+    for page in pages.values():
+        extract = page.get("extract", "").strip()
+        if extract:
+            # Kürzen falls nötig
+            if len(extract) > 250:
+                extract = extract[:247] + "…"
+            return extract
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Bild-Download
 # ---------------------------------------------------------------------------
@@ -171,15 +228,26 @@ def run_normal(ziel: str, folder: str) -> None:
     for idx, title in enumerate(top5, start=1):
         dest_path = os.path.join(folder, f"sight_{idx}.jpg")
         print(f"  [{idx}/5] {title} …")
+
+        # Bild: erst DE-Wikipedia, dann EN-Wikipedia als Fallback
         thumb_url = get_thumbnail_url(title)
+        if not thumb_url:
+            print(f"       🔍 Kein Bild auf DE-Wikipedia – versuche EN-Wikipedia …")
+            thumb_url = get_thumbnail_url_en(title)
+
         if thumb_url:
             success = download_image(thumb_url, dest_path)
-            # Fix #1 + #6: on failure use None, not a phantom filename
             image_value = dest_path.replace(os.sep, "/") if success else PLACEHOLDER_IMAGE
         else:
             print(f"       ⚠️ Kein Bild gefunden – Platzhalter wird verwendet.")
             image_value = PLACEHOLDER_IMAGE
-        sights.append({"name": title, "image": image_value})
+
+        # Kurzbeschreibung aus DE-Wikipedia
+        description = get_description(title)
+        if description:
+            print(f"       📝 Beschreibung: {description[:60]}…")
+
+        sights.append({"name": title, "image": image_value, "description": description})
 
     json_path = os.path.join(folder, "sights.json")
     with open(json_path, "w", encoding="utf-8") as f:
@@ -213,16 +281,22 @@ def run_replace(ziel: str, folder: str, position: int, new_name: str) -> None:
     dest_path = os.path.join(folder, f"sight_{position}.jpg")
 
     print(f"🔄 Ersetze Position {position}: '{sights[idx]['name']}' → '{new_name}' …")
+
+    # Bild: erst DE-Wikipedia, dann EN-Wikipedia als Fallback
     thumb_url = get_thumbnail_url(new_name)
+    if not thumb_url:
+        print(f"  🔍 Kein Bild auf DE-Wikipedia – versuche EN-Wikipedia …")
+        thumb_url = get_thumbnail_url_en(new_name)
+
     if thumb_url:
         success = download_image(thumb_url, dest_path)
-        # Fix #1 + #6: on failure use None, not a phantom filename
         image_value = dest_path.replace(os.sep, "/") if success else PLACEHOLDER_IMAGE
     else:
         print(f"  ⚠️ Kein Bild für '{new_name}' gefunden – Platzhalter wird verwendet.")
         image_value = PLACEHOLDER_IMAGE
 
-    sights[idx] = {"name": new_name, "image": image_value}
+    description = get_description(new_name)
+    sights[idx] = {"name": new_name, "image": image_value, "description": description}
 
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(sights, f, ensure_ascii=False, indent=2)

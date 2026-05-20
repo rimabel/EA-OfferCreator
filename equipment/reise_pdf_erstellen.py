@@ -220,6 +220,16 @@ def add_bullet(doc: Document, text: str) -> None:
     bullet_run.font.color.rgb = COLOR_DARK_GRAY
 
 
+def add_sight_description(doc: Document, text: str) -> None:
+    """Add a short description below a sight image: 9pt, gray, italic."""
+    p = doc.add_paragraph()
+    set_paragraph_space(p, before_pt=2, after_pt=6)
+    run = p.add_run(text)
+    run.italic = True
+    run.font.size = Pt(9)
+    run.font.color.rgb = RGBColor(0x77, 0x77, 0x77)
+
+
 def add_return_line(doc: Document, text: str) -> None:
     """Add a return/arrival line: 11pt, gray, italic."""
     p = doc.add_paragraph()
@@ -432,6 +442,7 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> 
     for sight in sights:
         name = sight.get("name", "")
         image_path = sight.get("image")
+        description = sight.get("description")
 
         # Sight name heading
         name_para = doc.add_paragraph()
@@ -466,13 +477,17 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> 
                     img_run.add_picture(image_path, width=COL_IMAGE_W)
             else:
                 img_run.add_picture(image_path, width=COL_IMAGE_W)
-            set_paragraph_space(img_para, after_pt=8)
+            set_paragraph_space(img_para, after_pt=2)
         else:
             placeholder = doc.add_paragraph()
-            set_paragraph_space(placeholder, after_pt=8)
+            set_paragraph_space(placeholder, after_pt=2)
             ph_run = placeholder.add_run("[Kein Bild verfügbar]")
             ph_run.italic = True
             ph_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
+
+        # Description below image (if available)
+        if description:
+            add_sight_description(doc, description)
 
     # -----------------------------------------------------------------------
     # Footer (company info + page number)
