@@ -142,10 +142,10 @@ Tel.: +49 6301 6689790 | info@belahmer-reisen.de
 ```bash
 PYTHONIOENCODING=utf-8 python equipment/email_entwurf_imap.py \
   --an "[KUNDEN-EMAIL]" \
-  --betreff "Ihr Reiseprogramm: [ZIEL] – Tagesplan & Sehenswürdigkeiten" \
+  --betreff "Ihr Reiseprogramm [ZIEL] – [REISETAG] | Belahmer Reisen" \
   --text email_reise_text.txt \
   --pdf "BR-REISE-[ZIELORT].pdf" \
-  --angebotsnr "BR-REISE-[ZIELORT]"
+  --angebotsnr "BR-REISE-[ZIELORT]-[DATUM]-[NACHNAME]"
 ```
 
 **Erwartete Ausgabe des Skripts:**
@@ -207,11 +207,15 @@ Den Nutzer informieren:
 | Fehler | Lösung |
 |---|---|
 | `reise_pdf_erstellen.py` bricht ab | Fehlermeldung prüfen, ggf. `sights.json` / `tagesplan.json` prüfen |
+| Word öffnet DOCX als schreibgeschützt (Protected View) | DOCX nach `%TEMP%` kopieren vor COM-Konvertierung — bereits im Equipment eingebaut (Zone.Identifier-Entfernung + TEMP-Ordner) |
+| `SaveAs`-Fehler bei COM-Konvertierung | `ExportAsFixedFormat` statt `SaveAs` verwenden — bereits im Equipment so implementiert |
+| Word hält DOCX-Datei gesperrt | `Stop-Process -Name WINWORD -Force` ausführen, dann erneut versuchen |
 | `IMAP_PASSWORD nicht gesetzt` | In `.env` eintragen: `IMAP_PASSWORD=IhrPasswort` |
 | `Drafts-Ordner nicht gefunden` | Skript-Output prüfen; `DRAFTS_FOLDER` in `email_entwurf_imap.py` anpassen |
 | `IMAP-Fehler: LOGIN failed` | Passwort prüfen, ggf. App-Passwort verwenden |
 | `PDF nicht gefunden` | Pfad prüfen; Schritt 1 erneut ausführen |
 | `sights.json fehlt` | Blueprint `reise-planen.md` neu starten — Daten unvollständig |
+| PDF-Viewer sperrt PDF beim Archivieren | PDF-Viewer schließen oder `Stop-Process` auf den Viewer-Prozess; dann `mv` erneut ausführen |
 
 ---
 

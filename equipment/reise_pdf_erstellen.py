@@ -15,6 +15,7 @@ Aufruf:
 import argparse
 import json
 import os
+import re
 import sys
 import unicodedata
 
@@ -47,7 +48,8 @@ COLOR_DARK_GRAY = RGBColor(0x33, 0x33, 0x33)  # #333333 — bullet points
 
 # Table column widths (named constants — avoid magic numbers throughout)
 COL_HEADER_LOGO_W = Cm(3)    # Logo column width in the company header table
-COL_IMAGE_W       = Cm(14)   # Sight image width
+COL_IMAGE_W       = Cm(14)   # Sight image standard width
+MAX_IMG_HEIGHT    = Cm(23)   # Max image height so title+image+description fit on one page
 
 COMPANY_NAME = "BELAHMER REISEN"
 COMPANY_LINES = [
@@ -62,6 +64,32 @@ COMPANY_LINES = [
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def clean_description(text: str) -> str:
+    """Remove Wikipedia clutter: language labels, phonetic brackets, trailing ellipsis."""
+    if not text:
+        return text
+    # Remove parentheticals containing language indicators, e.g. (französisch Tour Eiffel, [tuʁ‿ɛˈfɛl] )
+    text = re.sub(
+        r'\s*\([^)]*(?:französisch|deutsch|englisch|lateinisch|arabisch|spanisch|italienisch)[^)]*\)',
+        '', text
+    )
+    # Remove remaining standalone phonetic brackets, e.g. [ˈluːvrə]
+    text = re.sub(r'\s*\[[^\]]*\]', '', text)
+    # Remove trailing Wikipedia truncation ellipsis
+    text = re.sub(r'…$', '', text)
+    # Clean up double spaces and stray leading comma/space after removal
+    text = re.sub(r',\s*,', ',', text)
+    text = re.sub(r'\s{2,}', ' ', text).strip().rstrip(',').strip()
+    return text
+
+
+def set_keep_with_next(paragraph) -> None:
+    """Mark a paragraph so Word keeps it on the same page as the following paragraph."""
+    pPr = paragraph._p.get_or_add_pPr()
+    keep = OxmlElement('w:keepNext')
+    pPr.append(keep)
+
 
 def normalize_ziel(ziel: str) -> str:
     """Convert destination name to filesystem-friendly string.
@@ -170,7 +198,11 @@ def set_paragraph_space(paragraph, before_pt: int = 0, after_pt: int = 0) -> Non
 
 
 def add_divider(doc: Document) -> None:
-    """Add a horizontal divider line using a paragraph bottom border."""
+    """Add a horizontal divider line using a paragraph bottom border.
+
+    keep_with_next ensures the divider never appears alone at the bottom of a
+    page — it always moves to the next page together with the following heading.
+    """
     p = doc.add_paragraph()
     pPr = p._p.get_or_add_pPr()
     pBdr = OxmlElement("w:pBdr")
@@ -182,6 +214,7 @@ def add_divider(doc: Document) -> None:
     pBdr.append(bottom)
     pPr.append(pBdr)
     set_paragraph_space(p, before_pt=4, after_pt=4)
+    set_keep_with_next(p)
 
 
 def add_stop_heading(doc: Document, text: str, italic: bool = False) -> None:
@@ -508,10 +541,20 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, dat
     for sight in sights:
         name = sight.get("name", "")
         image_path = sight.get("image")
-        description = sight.get("description")
+        description = clean_description(sight.get("description"))
 
-        # Sight name heading
-        name_para = doc.add_paragraph()
+        # Wrap each sight in a 1×1 borderless table with cantSplit so that
+        # title + image + description are never split across pages.
+        sight_tbl = doc.add_table(rows=1, cols=1)
+        set_table_no_border(sight_tbl)
+        set_cell_no_border(sight_tbl.rows[0].cells[0])
+        trPr = sight_tbl.rows[0]._tr.get_or_add_trPr()
+        cant_split = OxmlElement("w:cantSplit")
+        trPr.append(cant_split)
+        cell = sight_tbl.rows[0].cells[0]
+
+        # Title — reuse the default empty paragraph that python-docx adds
+        name_para = cell.paragraphs[0]
         set_paragraph_space(name_para, before_pt=8, after_pt=4)
         name_run = name_para.add_run(name)
         name_run.bold = True
@@ -526,18 +569,25 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, dat
         )
 
         if image_ok:
-            img_para = doc.add_paragraph()
+            img_para = cell.add_paragraph()
             img_run = img_para.add_run()
-            # Use Pillow to normalise the image into a BytesIO buffer so that
-            # python-docx 1.2.0 can handle JPEGs with ICC-profile APP2 markers
-            # (0xFFD8FFE2) which it does not recognise when reading from disk.
+            # Use Pillow to normalise the image and detect dimensions.
+            # If the image would exceed MAX_IMG_HEIGHT at standard width,
+            # constrain by height instead so the whole sight fits on one page.
             if PILLOW_AVAILABLE:
                 try:
                     with PilImage.open(image_path) as pil_img:
+                        img_w_px, img_h_px = pil_img.size
                         buf = _io.BytesIO()
                         pil_img.convert("RGB").save(buf, format="JPEG", quality=90)
                         buf.seek(0)
-                    img_run.add_picture(buf, width=COL_IMAGE_W)
+                    aspect = img_w_px / img_h_px if img_h_px else 1
+                    display_h_cm = 14 / aspect  # height at standard COL_IMAGE_W (14 cm)
+                    if display_h_cm > 23:
+                        # Too tall — constrain by height; width auto-scales
+                        img_run.add_picture(buf, height=MAX_IMG_HEIGHT)
+                    else:
+                        img_run.add_picture(buf, width=COL_IMAGE_W)
                 except (OSError, ValueError, TypeError) as pil_err:
                     print(f"  [WARN] Pillow-Konvertierung fehlgeschlagen ({pil_err}), fallback wird verwendet...")
                     img_run.add_picture(image_path, width=COL_IMAGE_W)
@@ -545,15 +595,20 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, dat
                 img_run.add_picture(image_path, width=COL_IMAGE_W)
             set_paragraph_space(img_para, after_pt=2)
         else:
-            placeholder = doc.add_paragraph()
+            placeholder = cell.add_paragraph()
             set_paragraph_space(placeholder, after_pt=2)
             ph_run = placeholder.add_run("[Kein Bild verfügbar]")
             ph_run.italic = True
             ph_run.font.color.rgb = RGBColor(0x99, 0x99, 0x99)
 
-        # Description below image (if available)
+        # Description below image
         if description:
-            add_sight_description(doc, description)
+            desc_para = cell.add_paragraph()
+            set_paragraph_space(desc_para, before_pt=2, after_pt=6)
+            desc_run = desc_para.add_run(description)
+            desc_run.italic = True
+            desc_run.font.size = Pt(10)
+            desc_run.font.color.rgb = RGBColor(0x77, 0x77, 0x77)
 
     return doc
 
@@ -645,16 +700,41 @@ if __name__ == "__main__":
     doc.save(docx_path)
     print(f"[OK] DOCX erstellt: {docx_filename}")
 
-    # --- Convert to PDF via win32com (zuverlässiger als docx2pdf bei komplexen Dokumenten) ---
+    # --- Convert to PDF via win32com ---
+    # To avoid Word opening the file in Protected View, copy it to %TEMP% first
+    # (a location Word unconditionally trusts), convert there, then copy the PDF back.
     try:
-        import win32com.client, time
-        word = win32com.client.Dispatch("Word.Application")
+        import shutil, subprocess, tempfile, win32com.client, time
+
+        tmp_dir  = tempfile.mkdtemp(prefix="belahmer_")
+        tmp_docx = os.path.join(tmp_dir, os.path.basename(docx_path))
+        tmp_pdf  = os.path.splitext(tmp_docx)[0] + ".pdf"
+
+        shutil.copy2(docx_path, tmp_docx)
+
+        # Strip Zone.Identifier from the temp copy as extra safety measure
+        subprocess.run(
+            ["powershell", "-Command",
+             f'Remove-Item -LiteralPath "{tmp_docx}:Zone.Identifier" -ErrorAction SilentlyContinue'],
+            capture_output=True, timeout=10,
+        )
+
+        word    = win32com.client.Dispatch("Word.Application")
         word.Visible = False
-        doc_com = word.Documents.Open(docx_path)
-        time.sleep(1)
-        doc_com.SaveAs(pdf_path, FileFormat=17)  # 17 = wdFormatPDF
-        doc_com.Close()
+        word.Application.AutomationSecurity = 1  # msoAutomationSecurityLow
+        doc_com = word.Documents.Open(
+            tmp_docx,
+            ConfirmConversions=False,
+            ReadOnly=False,
+            AddToRecentFiles=False,
+        )
+        time.sleep(2)
+        doc_com.ExportAsFixedFormat(tmp_pdf, ExportFormat=17)  # 17 = wdExportFormatPDF
+        doc_com.Close(SaveChanges=False)
         word.Quit()
+
+        shutil.copy2(tmp_pdf, pdf_path)
+        shutil.rmtree(tmp_dir, ignore_errors=True)
     except Exception as e:
         print(f"[ERROR] Fehler bei der PDF-Konvertierung: {e}")
         sys.exit(1)

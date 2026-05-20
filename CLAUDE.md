@@ -89,8 +89,8 @@ Tel.: +49 6301 6689790
 | Skript | Beschreibung |
 |---|---|
 | `equipment/email_entwurf_imap.py` | E-Mail-Entwurf mit PDF-Anhang via IMAP speichern |
-| `equipment/reise_info_wikipedia.py` | Top-5-Sehenswürdigkeiten + Bilder von Wikipedia holen |
-| `equipment/reise_tagesplan.py` | Tagesplan mit Uhrzeiten automatisch berechnen |
+| `equipment/reise_info_wikipedia.py` | Top-N-Sehenswürdigkeiten + Bilder von Wikipedia holen (Anzahl frei wählbar) |
+| `equipment/reise_tagesplan.py` | Tagesplan mit Uhrzeiten + per-Halt-Fahrtzeiten automatisch berechnen |
 | `equipment/reise_pdf_erstellen.py` | Kombiniertes Reise-PDF (Tagesplan + Sehenswürdigkeiten) erstellen |
 
 ---
@@ -187,6 +187,7 @@ Fahrtzeit-Faustregel: `km ÷ 80`, auf 10 Minuten aufrunden. Standby = Abfahrt �
 | Python-Binary | `python` (nicht `python3`) |
 | PDF-Konvertierung (Angebote) | `docx2pdf` (LibreOffice nicht installiert) |
 | PDF-Konvertierung (Reise-PDF) | `win32com.client` direkt — `docx2pdf` versagt bei mehreren Sektionen + VML-Wasserzeichen |
+| Word Protected View (Reise-PDF) | DOCX vor COM-Konvertierung nach `%TEMP%` kopieren + Zone.Identifier via PowerShell entfernen — bereits im Equipment eingebaut |
 | IMAP-Skript starten | `PYTHONIOENCODING=utf-8 python equipment/...` |
 | Docx packen | Python `zipfile` (kein pack.py verfügbar) |
 

@@ -103,7 +103,7 @@ PYTHONIOENCODING=utf-8 python equipment/reise_info_wikipedia.py --ziel "[ZIEL]" 
 
 ---
 
-### Schritt 4 — Aktivitäten pro Halt generieren
+### Schritt 4 — Aktivitäten + Fahrtzeiten pro Halt generieren
 
 Der Architect generiert für jeden bestätigten Halt 2–3 typische Aktivitäten und einen Ankunfts-Block.
 
@@ -130,8 +130,26 @@ Optional (nur wenn ein optionaler Halt gewünscht ist):
 
 ---
 
+**Fahrtzeiten zwischen den Halten (Omnibus):**
+
+Der Architect schätzt die Fahrtzeit in Minuten zwischen jedem aufeinanderfolgenden Halt und listet sie auf:
+
+```
+Halt 1 → Halt 2: [X] Min.
+Halt 2 → Halt 3: [X] Min.
+...
+Halt N-1 → Halt N: [X] Min.
+```
+
+> „Stimmen diese Fahrtzeiten so ungefähr? (Können angepasst werden)"
+
+Die Fahrtzeiten werden als `fahrtzeiten`-Array in `aktivitaeten.json` gespeichert.  
+**Anzahl der Einträge = Anzahl Sights − 1** (nur Fahrten *zwischen* Halten, nicht die letzte Abfahrt).
+
+---
+
 Der Architect fragt:
-> „Sollen diese Aktivitäten so übernommen werden? (Kann vor der PDF-Erstellung angepasst werden)"
+> „Sollen diese Aktivitäten und Fahrtzeiten so übernommen werden?"
 
 Nach Bestätigung schreibt der Architect die Datei:
 `equipment/temp/reise-[normalized-ziel]/aktivitaeten.json`
@@ -146,6 +164,7 @@ Format:
     ["Aktivität 2a", "Aktivität 2b"],
     "... (ein Array pro Sight — so viele wie bestätigt)"
   ],
+  "fahrtzeiten": [30, 15, 15, 15, 45],
   "optional": {
     "name": "Gärten von Versailles",
     "von": "19:45",
@@ -156,7 +175,8 @@ Format:
 ```
 
 > ⚠️ Das `optional`-Feld wird **nur hinzugefügt**, wenn ein optionaler Halt gewünscht ist.  
-> ⚠️ **Ohne ausdrückliche Bestätigung der Aktivitäten nicht zum nächsten Schritt weitergehen.**
+> ⚠️ `fahrtzeiten` ist **immer Pflicht** — beeinflusst direkt die Tagesplan-Berechnung.  
+> ⚠️ **Ohne ausdrückliche Bestätigung der Aktivitäten + Fahrtzeiten nicht zum nächsten Schritt weitergehen.**
 
 ---
 
@@ -231,7 +251,8 @@ Folgende Daten übergeben (zusammenfassen und dem Nutzer bestätigen):
 - [ ] Alle Pflichtfelder vorhanden und vollständig?
 - [ ] Anzahl Sehenswürdigkeiten mit Nutzer abgestimmt und bestätigt?
 - [ ] Aktivitäten pro Halt generiert und vom Nutzer bestätigt?
-- [ ] `aktivitaeten.json` korrekt erzeugt (`equipment/temp/reise-[normalized-ziel]/aktivitaeten.json`)?
+- [ ] Fahrtzeiten zwischen den Halten geschätzt und vom Nutzer bestätigt?
+- [ ] `aktivitaeten.json` korrekt erzeugt inkl. `fahrtzeiten`-Array (`equipment/temp/reise-[normalized-ziel]/aktivitaeten.json`)?
 - [ ] Tagesplan berechnet und vom Nutzer freigegeben?
 - [ ] `tagesplan.json` korrekt erzeugt (`equipment/temp/reise-[normalized-ziel]/tagesplan.json`)?
 - [ ] Übergabedaten für nächsten Blueprint vollständig?
@@ -243,6 +264,8 @@ Folgende Daten übergeben (zusammenfassen und dem Nutzer bestätigen):
 - **Python-Binary:** `python` (nicht `python3`) — Windows-Umgebung
 - **Encoding:** Immer `PYTHONIOENCODING=utf-8` voranstellen
 - **Temp-Ordner:** `equipment/temp/reise-[normalized-ziel]/` — wird vom Equipment-Skript angelegt
+- **`fahrtzeiten`:** Werden vom Tagesplan-Skript aus `aktivitaeten.json` gelesen. Fehlt der Key, fällt das Skript auf 15 Min. Standardpuffer zurück — Ergebnis wird dann ungenau. Immer angeben.
+- **Tagesplan-Rundung:** Alle Zeiten werden auf die nächste 15-Minuten-Grenze aufgerundet. Die tatsächliche Haltezeit pro Sehenswürdigkeit wird durch Simulation so berechnet, dass der Zeitplan die Abfahrtszeit nicht überschreitet.
 - **Fehlerbehandlung:** Bei jedem Skript-Fehler (Exit-Code ≠ 0) sofort stoppen und den vollen Fehlertext an den Nutzer weitergeben — kein automatischer Neustart ohne Bestätigung
 
 ---

@@ -34,7 +34,7 @@ ABFAHRT_PUFFER = 30      # Gather-before-departure buffer
 BUFFER_BETWEEN = 15      # Gap between programme points
 MIN_PER_SIGHT = 30       # Minimum time per sight
 MAX_PER_SIGHT = 120      # Maximum time per sight
-TARGET_SIGHTS = 5        # Fixed target number of sights to schedule
+TARGET_SIGHTS = 6        # Fixed target number of sights to schedule
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +68,14 @@ def parse_time(s: str, arg_name: str) -> datetime:
 def fmt_time(dt: datetime) -> str:
     """Format datetime as HH:MM string."""
     return dt.strftime(TIME_FMT)
+
+
+def round_up_15(dt: datetime) -> datetime:
+    """Round a datetime up to the next 15-minute boundary."""
+    remainder = dt.minute % 15
+    if remainder == 0:
+        return dt.replace(second=0, microsecond=0)
+    return (dt + timedelta(minutes=15 - remainder)).replace(second=0, microsecond=0)
 
 
 def is_lunch_overlap(start: datetime, end: datetime) -> bool:
@@ -117,26 +125,40 @@ def calculate_tagesplan(
 
     Scheduling maths
     ----------------
-    available = (abfahrt - ankunft) - ANKUNFT_PAUSE - ABFAHRT_PUFFER
-    net_time  = (available - (n_sights - 1) * BUFFER_BETWEEN) / n_sights
-    net_time  clipped to [MIN_PER_SIGHT, MAX_PER_SIGHT]
+    Per-stop travel times are loaded from aktivitaeten["fahrtzeiten"] (list of
+    integers in minutes, one per inter-stop journey).  Falls back to
+    BUFFER_BETWEEN for any missing entry.
 
-    If even MIN_PER_SIGHT x n_sights + (n_sights - 1) x BUFFER_BETWEEN
-    exceeds available time, n_sights is reduced until it fits (warns user).
+    available  = (abfahrt - ankunft) - ANKUNFT_PAUSE - ABFAHRT_PUFFER
+    total_travel = sum of fahrtzeiten for the first (n_sights-1) legs
+    net_time   = (available - total_travel) / n_sights
+    net_time   clipped to [MIN_PER_SIGHT, MAX_PER_SIGHT]
     """
     total_available = int((abfahrt - ankunft).total_seconds() // 60) \
                       - ANKUNFT_PAUSE - ABFAHRT_PUFFER
 
-    # Guard: window too short for any programme at all
     if total_available <= 0:
         print("❌ Die Zeit zwischen Ankunft und Abfahrt ist zu kurz für eine Pause "
               "(mind. 60 Min. nötig)")
         sys.exit(1)
 
-    # Determine how many sights actually fit
+    # --- Aktivitaeten data ---
+    ankunft_aktivitaeten = aktivitaeten.get("ankunft", [])
+    sights_aktivitaeten  = aktivitaeten.get("sights", [])
+    fahrtzeiten_raw      = aktivitaeten.get("fahrtzeiten", [])
+
+    # Determine how many sights fit, using per-stop travel times
     n_sights = min(TARGET_SIGHTS, len(sights))
+
+    def travel_time(i: int) -> int:
+        """Travel time (min) from stop i to stop i+1."""
+        if i < len(fahrtzeiten_raw):
+            return int(fahrtzeiten_raw[i])
+        return BUFFER_BETWEEN
+
     while n_sights > 0:
-        needed = MIN_PER_SIGHT * n_sights + BUFFER_BETWEEN * (n_sights - 1)
+        total_travel = sum(travel_time(i) for i in range(n_sights - 1))
+        needed = MIN_PER_SIGHT * n_sights + total_travel
         if total_available >= needed:
             break
         n_sights -= 1
@@ -147,36 +169,49 @@ def calculate_tagesplan(
         print(f"⚠️  Warnung: Verfügbare Zeit reicht nur für {n_sights} Sehenswürdigkeit(en) "
               f"(statt {TARGET_SIGHTS}).")
 
-    # Calculate minutes per sight
+    # Calculate minutes per sight using actual travel times.
+    # Simulate the rounded schedule to find the largest net_time that still
+    # finishes before abfahrt - ABFAHRT_PUFFER (i.e. fits within total_available).
+    def simulate_end(trial: int) -> datetime:
+        """Return the datetime when the last sight ends given trial net_time."""
+        cur = round_up_15(ankunft + timedelta(minutes=ANKUNFT_PAUSE))
+        for j in range(n_sights):
+            cur = round_up_15(cur + timedelta(minutes=trial))
+            if j < n_sights - 1:
+                cur = round_up_15(cur + timedelta(minutes=travel_time(j)))
+        return cur
+
     if n_sights > 0:
-        net_time = (total_available - BUFFER_BETWEEN * (n_sights - 1)) // n_sights
+        total_travel = sum(travel_time(i) for i in range(n_sights - 1))
+        net_time = (total_available - total_travel) // n_sights
         net_time = max(MIN_PER_SIGHT, min(MAX_PER_SIGHT, net_time))
+        # Reduce net_time until the simulated schedule fits
+        deadline = abfahrt - timedelta(minutes=ABFAHRT_PUFFER)
+        while net_time >= MIN_PER_SIGHT and simulate_end(net_time) > deadline:
+            net_time -= 5
+        net_time = max(MIN_PER_SIGHT, net_time)
     else:
         net_time = 0
 
-    # --- Aktivitaeten data ---
-    ankunft_aktivitaeten = aktivitaeten.get("ankunft", [])
-    sights_aktivitaeten = aktivitaeten.get("sights", [])
-
     # --- Build halte (sight stops) ---
     halte: list[dict] = []
-    cursor = ankunft + timedelta(minutes=ANKUNFT_PAUSE)
+    cursor = round_up_15(ankunft + timedelta(minutes=ANKUNFT_PAUSE))
     mittagspause_used = False
 
     for i in range(n_sights):
         sight = sights[i]
-        sight_name = sight["name"]
+        sight_name  = sight["name"]
         sight_image = sight.get("image", None)
-        slot_start = cursor
-        slot_end = cursor + timedelta(minutes=net_time)
+        slot_start  = cursor
+        slot_end    = round_up_15(cursor + timedelta(minutes=net_time))
 
         halt: dict = {
-            "nr": i + 1,
-            "name": sight_name,
-            "von": fmt_time(slot_start),
-            "bis": fmt_time(slot_end),
+            "nr":          i + 1,
+            "name":        sight_name,
+            "von":         fmt_time(slot_start),
+            "bis":         fmt_time(slot_end),
             "aktivitaeten": sights_aktivitaeten[i] if i < len(sights_aktivitaeten) else [],
-            "image": sight_image,
+            "image":       sight_image,
         }
 
         if not mittagspause_used and is_lunch_overlap(slot_start, slot_end):
@@ -186,7 +221,7 @@ def calculate_tagesplan(
         halte.append(halt)
 
         if i < n_sights - 1:
-            cursor = slot_end + timedelta(minutes=BUFFER_BETWEEN)
+            cursor = round_up_15(slot_end + timedelta(minutes=travel_time(i)))
         else:
             cursor = slot_end
 
