@@ -79,6 +79,8 @@ Tel.: +49 6301 6689790
 |---|---|
 | `blueprints/angebot-erstellen.md` | Mietbus-Angebot aus Vorlage erstellen & anpassen |
 | `blueprints/email-entwurf-imap.md` | Angebot als PDF per IMAP als E-Mail-Entwurf speichern |
+| `blueprints/reise-planen.md` | Reise-Informationsblatt: Sights + Tagesplan planen |
+| `blueprints/reise-pdf-erstellen.md` | Reise-Informationsblatt: PDF erstellen & als E-Mail-Entwurf speichern |
 
 ---
 
@@ -87,6 +89,9 @@ Tel.: +49 6301 6689790
 | Skript | Beschreibung |
 |---|---|
 | `equipment/email_entwurf_imap.py` | E-Mail-Entwurf mit PDF-Anhang via IMAP speichern |
+| `equipment/reise_info_wikipedia.py` | Top-5-Sehenswürdigkeiten + Bilder von Wikipedia holen |
+| `equipment/reise_tagesplan.py` | Tagesplan mit Uhrzeiten automatisch berechnen |
+| `equipment/reise_pdf_erstellen.py` | Kombiniertes Reise-PDF (Tagesplan + Sehenswürdigkeiten) erstellen |
 
 ---
 
@@ -112,6 +117,26 @@ Tel.: +49 6301 6689790
 
 ---
 
+## Reise-Planer-Workflow (eigenständig)
+
+```
+1. Anfrage analysieren (Architect)
+        ↓
+2. Blueprint: reise-planen.md
+   → Sights von Wikipedia holen
+   → Tagesplan berechnen
+   → Nutzer bestätigt Sights + Zeitplan
+        ↓
+3. Blueprint: reise-pdf-erstellen.md
+   → kombiniertes PDF erstellen (Tagesplan + Sehenswürdigkeiten)
+   → E-Mail-Entwurf als Anhang speichern
+   → Archivieren
+        ↓
+4. Fertig – Nutzer prüft Entwurf im E-Mail-Client
+```
+
+---
+
 ## Wichtige Regeln
 
 - **Niemals** Entfernungen schätzen – immer beim Nutzer erfragen (keine Websuche erzwingen)
@@ -122,6 +147,8 @@ Tel.: +49 6301 6689790
 - Stornofristen sind Standard – nur ändern wenn ausdrücklich gewünscht
 - **Angebotsfrist** = `min(Erstellungsdatum + 7 Tage, Datum Hinfahrt)` — nie nach dem Abfahrtsdatum
 - **PDF-Dateiname**: `BR-AXXX-XXXX.pdf` — kein Vorlagen-Suffix (z.B. kein `_Garamond_4_`)
+- **Niemals** Wikipedia-Bilder ohne Nutzer-Bestätigung ins PDF übernehmen – immer zuerst die Sight-Liste bestätigen lassen
+- **Niemals** den Tagesplan automatisch finalisieren – Nutzer muss den Zeitplan bestätigen
 
 ---
 
@@ -134,6 +161,9 @@ Tel.: +49 6301 6689790
 | Angebotsnummer | `BR-A[JAHR]-[4-stellig]` | `BR-A2026-0008` |
 | Auftragsnummer | `#TTMM001` (je Fahrtdatum) | Hinfahrt `#2205001`, Rückfahrt `#2505001` |
 | Archiv-Ordner | `archiv/[ANGEBOTSNUMMER]/` | `archiv/BR-A2026-0008/` |
+| Reise-DOCX | `BR-REISE-[ZIELORT]_Garamond_4_.docx` | `BR-REISE-Paris_Garamond_4_.docx` |
+| Reise-PDF | `BR-REISE-[ZIELORT].pdf` | `BR-REISE-Paris.pdf` |
+| Reise-Archiv | `archiv/BR-REISE-[ZIELORT]-[DATUM]-[NACHNAME]/` | `archiv/BR-REISE-Paris-2026-05-22-Mustermann/` |
 
 ---
 
