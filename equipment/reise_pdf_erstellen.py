@@ -331,7 +331,7 @@ def add_footer(section) -> None:
 # Document builder
 # ---------------------------------------------------------------------------
 
-def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, datum: str = "") -> Document:
+def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, datum: str = "", watermark: bool = False) -> Document:
     doc = Document()
 
     # --- Page setup: A4, narrow margins ---
@@ -483,8 +483,9 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, dat
     section2.left_margin   = Cm(2)
     section2.right_margin  = Cm(2)
 
-    # Wasserzeichen nur in Sektion 1
-    add_watermark_to_header(section1, color="EDD8D8", text="BELAHMER REISEN")
+    # Wasserzeichen nur in Sektion 1 (optional)
+    if watermark:
+        add_watermark_to_header(section1, color="EDD8D8", text="BELAHMER REISEN")
 
     # Sektion 2: eigener leerer Header (kein Wasserzeichen)
     section2.header.is_linked_to_previous = False
@@ -573,6 +574,8 @@ def parse_args() -> argparse.Namespace:
                         help="Pfad zur tagesplan.json")
     parser.add_argument("--datum", default="",
                         help="Reisetag (z.B. '22.05.2026')")
+    parser.add_argument("--watermark", action="store_true",
+                        help="Wasserzeichen 'BELAHMER REISEN' auf Seite 1 einblenden")
     return parser.parse_args()
 
 
@@ -637,6 +640,7 @@ if __name__ == "__main__":
         tagesplan=tagesplan,
         logo_path=logo_path,
         datum=args.datum,
+        watermark=args.watermark,
     )
     doc.save(docx_path)
     print(f"[OK] DOCX erstellt: {docx_filename}")

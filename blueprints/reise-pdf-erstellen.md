@@ -37,8 +37,30 @@ Beispiele: `Paris`, `Strassburg`, `Bad-Homburg`
 
 ## Schritt-für-Schritt-Workflow
 
-### Schritt 1 — PDF erstellen
+### Schritt 1 — Wasserzeichen-Entscheidung
 
+Den Nutzer fragen:
+
+> **Soll das PDF ein Wasserzeichen „BELAHMER REISEN" auf der Tagesplan-Seite erhalten?**  
+> (Ja → `--watermark` wird hinzugefügt / Nein → kein Wasserzeichen)
+
+---
+
+### Schritt 2 — PDF erstellen
+
+Je nach Antwort:
+
+**Mit Wasserzeichen:**
+```bash
+PYTHONIOENCODING=utf-8 python equipment/reise_pdf_erstellen.py \
+  --ziel "[ZIEL]" \
+  --datum "[REISETAG]" \
+  --watermark \
+  --sights "equipment/temp/reise-[normalized-ziel]/sights.json" \
+  --tagesplan "equipment/temp/reise-[normalized-ziel]/tagesplan.json"
+```
+
+**Ohne Wasserzeichen:**
 ```bash
 PYTHONIOENCODING=utf-8 python equipment/reise_pdf_erstellen.py \
   --ziel "[ZIEL]" \
@@ -58,7 +80,7 @@ PYTHONIOENCODING=utf-8 python equipment/reise_pdf_erstellen.py \
 
 ---
 
-### Schritt 2 — PDF visuell prüfen
+### Schritt 3 — PDF visuell prüfen
 
 Den Nutzer auffordern, das PDF zu öffnen und folgende Punkte zu prüfen:
 
@@ -71,7 +93,7 @@ Den Nutzer auffordern, das PDF zu öffnen und folgende Punkte zu prüfen:
 
 ---
 
-### Schritt 3 — E-Mail-Text erstellen
+### Schritt 4 — E-Mail-Text erstellen
 
 Datei `email_reise_text.txt` mit folgendem Inhalt erstellen (Platzhalter ersetzen):
 
@@ -104,7 +126,7 @@ Tel.: +49 6301 6689790 | info@belahmer-reisen.de
 
 ---
 
-### Schritt 4 — IMAP-Passwort prüfen
+### Schritt 5 — IMAP-Passwort prüfen
 
 ```bash
 # Passwort muss in .env gesetzt sein – NIEMALS direkt im Code speichern!
@@ -115,7 +137,7 @@ Tel.: +49 6301 6689790 | info@belahmer-reisen.de
 
 ---
 
-### Schritt 5 — E-Mail-Entwurf via IMAP speichern
+### Schritt 6 — E-Mail-Entwurf via IMAP speichern
 
 ```bash
 PYTHONIOENCODING=utf-8 python equipment/email_entwurf_imap.py \
@@ -135,7 +157,7 @@ PYTHONIOENCODING=utf-8 python equipment/email_entwurf_imap.py \
 
 ---
 
-### Schritt 6 — Archivieren
+### Schritt 7 — Archivieren
 
 > 🔒 **Bestätigung erforderlich (permissions.md):** Vor dem Verschieben von Dateien den Nutzer informieren und auf Bestätigung warten.
 
@@ -160,7 +182,7 @@ mv email_reise_text.txt                archiv/BR-REISE-[ZIELORT]-[DATUM]-[NACHNA
 
 ---
 
-### Schritt 7 — Temp-Ordner aufräumen (optional)
+### Schritt 8 — Temp-Ordner aufräumen (optional)
 
 > 🔒 **Bestätigung erforderlich (permissions.md):** Den Nutzer fragen, ob der Temp-Ordner gelöscht werden soll.
 
@@ -171,7 +193,7 @@ rm -rf equipment/temp/reise-[normalized-ziel]/
 
 ---
 
-### Schritt 8 — Abschluss
+### Schritt 9 — Abschluss
 
 Den Nutzer informieren:
 
