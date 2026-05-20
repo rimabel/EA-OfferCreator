@@ -49,8 +49,8 @@ COLOR_DARK_GRAY = RGBColor(0x33, 0x33, 0x33)  # #333333 — bullet points
 COL_HEADER_LOGO_W = Cm(3)    # Logo column width in the company header table
 COL_IMAGE_W       = Cm(14)   # Sight image width
 
+COMPANY_NAME = "BELAHMER REISEN"
 COMPANY_LINES = [
-    "BELAHMER REISEN",
     "Inh. Nabil Belahmer",
     "Kurpfalzstr 3",
     "67734 Katzweiler",
@@ -289,7 +289,7 @@ def add_footer(doc: Document) -> None:
 # Document builder
 # ---------------------------------------------------------------------------
 
-def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> Document:
+def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str, datum: str = "") -> Document:
     doc = Document()
 
     # --- Page setup: A4, narrow margins ---
@@ -305,59 +305,66 @@ def build_document(ziel: str, sights: list, tagesplan: dict, logo_path: str) -> 
     # PAGE 1: Header + Tagesablauf Stop Cards
     # -----------------------------------------------------------------------
 
-    # --- Company header table (2 cols, no border) ---
+    # --- Company header table (2 cols, no border) — matches offer template style ---
+    # Col 0: Logo (left-aligned), Col 1: Company info (right-aligned, white bg)
     header_table = doc.add_table(rows=1, cols=2)
     set_table_no_border(header_table)
     header_table.autofit = False
 
-    # Set column widths: logo col = 3cm, info col = fill rest
     header_table.columns[0].width = COL_HEADER_LOGO_W
-    header_table.columns[1].width = COL_IMAGE_W
+    header_table.columns[1].width = Cm(14)
 
     logo_cell = header_table.cell(0, 0)
     info_cell = header_table.cell(0, 1)
 
-    # Remove borders on both cells
     set_cell_no_border(logo_cell)
     set_cell_no_border(info_cell)
+
+    # Vertical centering for both cells
+    for cell in (logo_cell, info_cell):
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        vAlign = OxmlElement("w:vAlign")
+        vAlign.set(qn("w:val"), "center")
+        existing = tcPr.find(qn("w:vAlign"))
+        if existing is not None:
+            tcPr.remove(existing)
+        tcPr.append(vAlign)
 
     # Logo
     logo_para = logo_cell.paragraphs[0]
     logo_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
     logo_run = logo_para.add_run()
-    logo_run.add_picture(logo_path, width=Cm(2.5))
+    logo_run.add_picture(logo_path, width=Cm(3.2))
 
-    # Company info — dark red background, white bold text
-    set_cell_bg(info_cell, "980000")
+    # Company info — right-aligned, white background, no red banner
     info_para = info_cell.paragraphs[0]
-    info_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    info_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
-    for i, line in enumerate(COMPANY_LINES):
-        run = info_para.add_run(line)
-        run.bold = True
-        run.font.color.rgb = COLOR_WHITE
-        run.font.size = Pt(10)
-        if i < len(COMPANY_LINES) - 1:
-            run.add_break()
+    # "BELAHMER REISEN" — bold, dark red (#980000), 14pt (matches offer template)
+    name_run = info_para.add_run(COMPANY_NAME)
+    name_run.bold = True
+    name_run.font.size = Pt(14)
+    name_run.font.color.rgb = COLOR_DARK_RED
 
-    # Set cell vertical padding to give the text some breathing room
-    for cell in (logo_cell, info_cell):
-        tc = cell._tc
-        tcPr = tc.get_or_add_tcPr()
-        tcMar = OxmlElement("w:tcMar")
-        for side in ("top", "left", "bottom", "right"):
-            m = OxmlElement(f"w:{side}")
-            m.set(qn("w:w"), "80")    # ≈ 0.14 cm
-            m.set(qn("w:type"), "dxa")
-            tcMar.append(m)
-        existing = tcPr.find(qn("w:tcMar"))
-        if existing is not None:
-            tcPr.remove(existing)
-        tcPr.append(tcMar)
+    # Remaining lines — normal weight, black, 10pt
+    for line in COMPANY_LINES:
+        info_para.add_run().add_break()
+        line_run = info_para.add_run(line)
+        line_run.font.size = Pt(10)
+        line_run.font.color.rgb = RGBColor(0x00, 0x00, 0x00)
+
+    # --- Date line (right-aligned, like offer template) ---
+    if datum:
+        date_para = doc.add_paragraph()
+        set_paragraph_space(date_para, before_pt=6, after_pt=0)
+        date_para.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        date_run = date_para.add_run(f"Katzweiler, den {datum}")
+        date_run.font.size = Pt(10)
 
     # --- Title paragraph: "Tagesablauf: [ZIEL]" ---
     title_para = doc.add_paragraph()
-    set_paragraph_space(title_para, before_pt=12, after_pt=6)
+    set_paragraph_space(title_para, before_pt=24, after_pt=6)
     title_run = title_para.add_run(f"Tagesablauf: {ziel}")
     title_run.bold = True
     title_run.font.size = Pt(18)
@@ -511,6 +518,8 @@ def parse_args() -> argparse.Namespace:
                         help="Pfad zur sights.json")
     parser.add_argument("--tagesplan", required=True,
                         help="Pfad zur tagesplan.json")
+    parser.add_argument("--datum", default="",
+                        help="Reisetag (z.B. '22.05.2026')")
     return parser.parse_args()
 
 
@@ -574,6 +583,7 @@ if __name__ == "__main__":
         sights=sights,
         tagesplan=tagesplan,
         logo_path=logo_path,
+        datum=args.datum,
     )
     doc.save(docx_path)
     print(f"[OK] DOCX erstellt: {docx_filename}")

@@ -21,6 +21,7 @@ Folgende Daten und Dateien müssen aus Blueprint `reise-planen.md` vorliegen:
 | Kundenname (mit Anrede) | Herr Mustermann |
 | Kunden-E-Mail | mustermann@example.de |
 | Abfahrtsort / Heimatort | Völklingen |
+| Reisetag (Datum der Reise) | 22.05.2026 |
 | Bestätigte `sights.json` | `equipment/temp/reise-[normalized-ziel]/sights.json` |
 | Bestätigter `tagesplan.json` | `equipment/temp/reise-[normalized-ziel]/tagesplan.json` |
 
@@ -41,6 +42,7 @@ Beispiele: `Paris`, `Strassburg`, `Bad-Homburg`
 ```bash
 PYTHONIOENCODING=utf-8 python equipment/reise_pdf_erstellen.py \
   --ziel "[ZIEL]" \
+  --datum "[REISETAG]" \
   --sights "equipment/temp/reise-[normalized-ziel]/sights.json" \
   --tagesplan "equipment/temp/reise-[normalized-ziel]/tagesplan.json"
 ```
