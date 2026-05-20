@@ -33,7 +33,7 @@ ABFAHRT_PUFFER = 30      # Gather-before-departure buffer
 BUFFER_BETWEEN = 15      # Gap between programme points
 MIN_PER_SIGHT = 30       # Minimum time per sight
 MAX_PER_SIGHT = 120      # Maximum time per sight
-TARGET_SIGHTS = 5        # Default number of sights to schedule
+TARGET_SIGHTS = 5        # Fixed target number of sights to schedule
 
 
 # ---------------------------------------------------------------------------
@@ -102,6 +102,12 @@ def calculate_tagesplan(
     total_available = int((abfahrt - ankunft).total_seconds() // 60) \
                       - ANKUNFT_PAUSE - ABFAHRT_PUFFER
 
+    # Guard: window too short for any programme at all
+    if total_available <= 0:
+        print("❌ Die Zeit zwischen Ankunft und Abfahrt ist zu kurz für eine Pause "
+              "(mind. 60 Min. nötig)")
+        sys.exit(1)
+
     # Determine how many sights actually fit
     n_sights = min(TARGET_SIGHTS, len(sights))
     while n_sights > 0:
@@ -133,6 +139,7 @@ def calculate_tagesplan(
 
     # --- Sight slots ---
     cursor = ankunft + timedelta(minutes=ANKUNFT_PAUSE)
+    mittagspause_used = False
 
     for i in range(n_sights):
         sight_name = sights[i]["name"]
@@ -140,15 +147,19 @@ def calculate_tagesplan(
         slot_end = cursor + timedelta(minutes=net_time)
 
         label = sight_name
-        if is_lunch_overlap(slot_start, slot_end):
+        if not mittagspause_used and is_lunch_overlap(slot_start, slot_end):
             label += " (Mittagspause)"
+            mittagspause_used = True
 
         rows.append({
             "zeit": f"{fmt_time(slot_start)} – {fmt_time(slot_end)}",
             "programm": label,
         })
 
-        cursor = slot_end + timedelta(minutes=BUFFER_BETWEEN)
+        if i < n_sights - 1:
+            cursor = slot_end + timedelta(minutes=BUFFER_BETWEEN)
+        else:
+            cursor = slot_end
 
     # --- Departure row ---
     rows.append({
@@ -207,6 +218,9 @@ if __name__ == "__main__":
     heimankunft_dt = None
     if args.heimankunft:
         heimankunft_dt = parse_time(args.heimankunft, "heimankunft")
+        # Fix midnight crossover: if heimankunft is on the next calendar day
+        if heimankunft_dt <= abfahrt_dt:
+            heimankunft_dt += timedelta(days=1)
 
     # --- Load sights.json ---
     if not os.path.exists(args.json_path):
@@ -218,6 +232,11 @@ if __name__ == "__main__":
 
     if not sights:
         print("❌ Fehler: sights.json ist leer.")
+        sys.exit(1)
+
+    # Validate sights.json schema
+    if not isinstance(sights, list) or any("name" not in entry for entry in sights):
+        print("❌ Fehler: sights.json hat ein ungültiges Format")
         sys.exit(1)
 
     # --- Compute output folder (anchored to script directory) ---
