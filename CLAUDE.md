@@ -149,6 +149,7 @@ Tel.: +49 6301 6689790
 - **PDF-Dateiname**: `BR-AXXX-XXXX.pdf` — kein Vorlagen-Suffix (z.B. kein `_Garamond_4_`)
 - **Niemals** Wikipedia-Bilder ohne Nutzer-Bestätigung ins PDF übernehmen – immer zuerst die Sight-Liste bestätigen lassen
 - **Niemals** den Tagesplan automatisch finalisieren – Nutzer muss den Zeitplan bestätigen
+- **Wasserzeichen (Reise-PDF)**: Vor der PDF-Erstellung immer fragen, ob ein Wasserzeichen „BELAHMER REISEN" gewünscht ist (`--watermark` Flag)
 
 ---
 
@@ -184,7 +185,8 @@ Fahrtzeit-Faustregel: `km ÷ 80`, auf 10 Minuten aufrunden. Standby = Abfahrt �
 | Thema | Lösung |
 |---|---|
 | Python-Binary | `python` (nicht `python3`) |
-| PDF-Konvertierung | `docx2pdf` (LibreOffice nicht installiert) |
+| PDF-Konvertierung (Angebote) | `docx2pdf` (LibreOffice nicht installiert) |
+| PDF-Konvertierung (Reise-PDF) | `win32com.client` direkt — `docx2pdf` versagt bei mehreren Sektionen + VML-Wasserzeichen |
 | IMAP-Skript starten | `PYTHONIOENCODING=utf-8 python equipment/...` |
 | Docx packen | Python `zipfile` (kein pack.py verfügbar) |
 
