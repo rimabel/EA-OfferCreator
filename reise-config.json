@@ -1,13 +1,13 @@
 {
   "active": false,
   "reise": {
-    "zielort": "",
-    "datum_hinfahrt": "",
-    "uhrzeit_abfahrt": "",
-    "abfahrtsort": "",
-    "anzahl_personen": 0,
-    "rueckkehr_datum": "",
-    "ansprechpartner": "",
+    "zielort": "Meknes",
+    "datum_hinfahrt": "2026-06-12",
+    "uhrzeit_abfahrt": "12:00",
+    "abfahrtsort": "Fes",
+    "anzahl_personen": 30,
+    "rueckkehr_datum": "2026-06-14",
+    "ansprechpartner": "Nabil",
     "notizen": ""
   }
 }
