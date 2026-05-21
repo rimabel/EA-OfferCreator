@@ -1,0 +1,58 @@
+{
+  "ziel": "Meknes",
+  "ankunft": {
+    "zeit": "13:00",
+    "aktivitaeten": []
+  },
+  "halte": [
+    {
+      "nr": 1,
+      "name": "Bab Mansour",
+      "von": "13:30",
+      "bis": "14:30",
+      "aktivitaeten": [],
+      "image": null,
+      "mittagspause": true
+    },
+    {
+      "nr": 2,
+      "name": "Mausolée Moulay Ismaïl",
+      "von": "14:45",
+      "bis": "15:45",
+      "aktivitaeten": [],
+      "image": null
+    },
+    {
+      "nr": 3,
+      "name": "Heri es-Swani",
+      "von": "16:00",
+      "bis": "17:00",
+      "aktivitaeten": [],
+      "image": null
+    },
+    {
+      "nr": 4,
+      "name": "Medersa Bou Inania",
+      "von": "17:15",
+      "bis": "18:15",
+      "aktivitaeten": [],
+      "image": null
+    },
+    {
+      "nr": 5,
+      "name": "Place el-Hedim",
+      "von": "18:30",
+      "bis": "19:30",
+      "aktivitaeten": [],
+      "image": null
+    }
+  ],
+  "abfahrt": {
+    "zeit": "20:00",
+    "heimatort": "Fes"
+  },
+  "heimankunft": {
+    "zeit": "21:00",
+    "heimatort": "Fes"
+  }
+}
