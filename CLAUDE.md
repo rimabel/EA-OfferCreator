@@ -78,6 +78,7 @@ Tel.: +49 6301 6689790
 | Blueprint | Beschreibung |
 |---|---|
 | `blueprints/angebot-erstellen.md` | Mietbus-Angebot aus Vorlage erstellen & anpassen |
+| `blueprints/auftragsbestaetigung-erstellen.md` | Auftragsbestätigung (BR-AB…) aus bestehendem Angebot erstellen |
 | `blueprints/email-entwurf-imap.md` | Angebot als PDF per IMAP als E-Mail-Entwurf speichern |
 | `blueprints/reise-planen.md` | Reise-Informationsblatt: Sights + Tagesplan planen |
 | `blueprints/reise-pdf-erstellen.md` | Reise-Informationsblatt: PDF erstellen & als E-Mail-Entwurf speichern |
@@ -88,6 +89,7 @@ Tel.: +49 6301 6689790
 
 | Skript | Beschreibung |
 |---|---|
+| `equipment/angebot_daten_lesen.py` | Befüllte Angebots-DOCX auslesen und Feldwerte als JSON ausgeben |
 | `equipment/email_entwurf_imap.py` | E-Mail-Entwurf mit PDF-Anhang via IMAP speichern |
 | `equipment/reise_info_wikipedia.py` | Top-N-Sehenswürdigkeiten + Bilder von Wikipedia holen (Anzahl frei wählbar) |
 | `equipment/reise_tagesplan.py` | Tagesplan mit Uhrzeiten + per-Halt-Fahrtzeiten automatisch berechnen |
@@ -166,6 +168,10 @@ Tel.: +49 6301 6689790
 | Reise-DOCX | `BR-REISE-[ZIELORT]_Garamond_4_.docx` | `BR-REISE-Paris_Garamond_4_.docx` |
 | Reise-PDF | `BR-REISE-[ZIELORT].pdf` | `BR-REISE-Paris.pdf` |
 | Reise-Archiv | `archiv/BR-REISE-[ZIELORT]-[DATUM]-[NACHNAME]/` | `archiv/BR-REISE-Paris-2026-05-22-Mustermann/` |
+| Bestätigung (docx) | `BR-AB[JAHR]-[NR]_Garamond_4_.docx` | `BR-AB2026-0001_Garamond_4_.docx` |
+| Bestätigung (PDF) | `BR-AB[JAHR]-[NR].pdf` | `BR-AB2026-0001.pdf` |
+| Bestätigungs-Nr. | `BR-AB[JAHR]-[4-stellig]` | `BR-AB2026-0001` |
+| Bestätigung-Archiv | Im Ordner des zugehörigen Angebots | `archiv/BR-A2026-0008/` |
 
 ---
 
@@ -193,4 +199,6 @@ Fahrtzeit-Faustregel: `km ÷ 80`, auf 10 Minuten aufrunden. Standby = Abfahrt �
 | IMAP-Skript starten | `PYTHONIOENCODING=utf-8 python equipment/...` |
 | Docx packen | Python `zipfile` (kein pack.py verfügbar) |
 
-**Template-Workflow:** Vor jedem Angebot `template/word/document.xml` → `unpacked/word/document.xml` kopieren, dann direkt bearbeiten und neu packen.
+**Template-Workflow (Angebot):** Vor jedem Angebot `template/word/document.xml` → `unpacked/word/document.xml` kopieren, dann direkt bearbeiten und neu packen.
+
+**Template-Workflow (Bestätigung):** Vor jeder Bestätigung `template-auftragsbestaetigung/word/document.xml` → `unpacked/word/document.xml` kopieren, dann direkt bearbeiten und neu packen.
