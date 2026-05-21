@@ -1,7 +1,8 @@
 # Blueprint: Reise-Informationsblatt PDF erstellen & versenden
 **Engine:** 2 — Blueprint  
 **Datei:** `blueprints/reise-pdf-erstellen.md`  
-**Equipment:** `equipment/reise_pdf_erstellen.py`, `equipment/email_entwurf_imap.py`  
+**Equipment (Windows):** `equipment/reise_pdf_erstellen.py`, `equipment/email_entwurf_imap.py`  
+**Equipment (Linux/Remote):** `equipment/reise_pdf_erstellen_linux.py`, `equipment/email_entwurf_imap.py`  
 **Abhängigkeit:** Blueprint `reise-planen.md` muss vollständig abgeschlossen sein (Schritt 2 von 2).
 
 ---
@@ -68,6 +69,16 @@ PYTHONIOENCODING=utf-8 python equipment/reise_pdf_erstellen.py \
   --sights "equipment/temp/reise-[normalized-ziel]/sights.json" \
   --tagesplan "equipment/temp/reise-[normalized-ziel]/tagesplan.json"
 ```
+
+> **Auf Linux / Remote-Agenten** statt `reise_pdf_erstellen.py` das Linux-Skript verwenden  
+> (Voraussetzung: `sudo apt install libreoffice`):
+> ```bash
+> python equipment/reise_pdf_erstellen_linux.py \
+>   --ziel "[ZIEL]" \
+>   --datum "[REISETAG]" \
+>   --sights "equipment/temp/reise-[normalized-ziel]/sights.json" \
+>   --tagesplan "equipment/temp/reise-[normalized-ziel]/tagesplan.json"
+> ```
 
 **Erwartete Ausgabedateien:**
 
