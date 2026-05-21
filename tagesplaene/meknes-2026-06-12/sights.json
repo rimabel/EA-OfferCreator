@@ -2,26 +2,26 @@
   {
     "name": "Bab Mansour",
     "image": null,
-    "description": "Bab Mansour ist das berühmteste und prächtigste Stadttor Marokkos, erbaut zwischen 1672 und 1732 unter Sultan Moulay Ismail. Es gilt als eines der schönsten maurischen Tore Nordafrikas und ist reich mit Zellij-Mosaiken und korinthischen Säulen verziert."
+    "description": "Das Bab Mansour ist das prächtigste Stadttor Marokkos und gilt als eines der schönsten Tore der islamischen Welt. Es wurde unter Sultan Moulay Ismail begonnen und 1732 von seinem Sohn Moulay Abdallah fertiggestellt."
   },
   {
     "name": "Mausoleum Moulay Ismail",
     "image": null,
-    "description": "Das Mausoleum Moulay Ismail ist die Grabstätte des mächtigen Alawiten-Sultans Moulay Ismail (1672–1727), der Meknes zur Hauptstadt seines Reiches machte. Das heilige Bauwerk zählt zu den wenigen islamischen Heiligtümern Marokkos, die auch Nicht-Muslimen zugänglich sind."
+    "description": "Das Mausoleum des Sultans Moulay Ismail (reg. 1672–1727) ist eine der heiligsten Stätten Marokkos und eines der wenigen religiösen Gebäude des Landes, das auch Nicht-Muslimen zugänglich ist. Es beeindruckt durch aufwendige Zellij-Mosaike und Zedernholzschnitzereien."
   },
   {
     "name": "Heri es-Souani",
     "image": null,
-    "description": "Heri es-Souani sind die imposanten königlichen Getreidespeicher und Pferdeställe aus der Zeit Moulay Ismaïls, die einst bis zu 12.000 Pferde beherbergen konnten. Die gewaltigen Bögenreihen und unterirdischen Lager zählen zu den eindrucksvollsten Bauwerken der alawiti­schen Dynastie."
+    "description": "Heri es-Souani sind die gewaltigen königlichen Stallungen und Kornspeicher Moulay Ismails, die einst bis zu 12.000 Pferde beherbergen konnten. Die imposanten Gewölbebögen und weitläufigen Ruinen vermitteln noch heute einen Eindruck der einstigen Pracht."
   },
   {
-    "name": "Place El Hedim",
+    "name": "Place El-Hedim",
     "image": null,
-    "description": "Place El Hedim ist der lebhafte Hauptplatz von Meknes, vergleichbar mit dem Djemaa el-Fna in Marrakesch. Hier treffen sich Händler, Gaukler und Touristen; der Platz bildet den Eingang zur historischen Medina und ist der pulsierende Mittelpunkt der Altstadt."
+    "description": "Der Place El-Hedim ist das pulsierende Herz der Medina von Meknes – ein belebter Platz mit Straßenhändlern, Musikern und Garküchen, direkt vor dem Bab Mansour gelegen. Er ist idealer Ausgangspunkt für Erkundungen der Altstadt."
   },
   {
-    "name": "Dar Jamai Museum",
+    "name": "Médina von Meknes (UNESCO)",
     "image": null,
-    "description": "Das Dar Jamai ist ein prächtiger Palast aus dem späten 19. Jahrhundert, der heute als Nationalmuseum für marokkanische Kunst genutzt wird. Die reich verzierten Säle mit Stuckarbeiten, Zedernholzschnitzereien und Zellij-Mosaiken beherbergen bedeutende Sammlungen islamischer Keramik, Textilien und Schmuck."
+    "description": "Die historische Medina von Meknes gehört seit 1996 zum UNESCO-Weltkulturerbe. Sie bewahrt das authentische Stadtbild des 17. und 18. Jahrhunderts mit engen Gassen, traditionellen Souks, Moscheen und Koranschulen (Madresen)."
   }
 ]
