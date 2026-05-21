@@ -16,7 +16,7 @@
     },
     {
       "nr": 2,
-      "name": "Mausolée Moulay Ismaïl",
+      "name": "Mausoleum Moulay Ismail",
       "von": "14:45",
       "bis": "15:45",
       "aktivitaeten": [],
@@ -24,7 +24,7 @@
     },
     {
       "nr": 3,
-      "name": "Heri es-Swani",
+      "name": "Heri es-Souani",
       "von": "16:00",
       "bis": "17:00",
       "aktivitaeten": [],
@@ -32,7 +32,7 @@
     },
     {
       "nr": 4,
-      "name": "Medersa Bou Inania",
+      "name": "Place El Hedim",
       "von": "17:15",
       "bis": "18:15",
       "aktivitaeten": [],
@@ -40,7 +40,7 @@
     },
     {
       "nr": 5,
-      "name": "Place el-Hedim",
+      "name": "Dar Jamai Museum",
       "von": "18:30",
       "bis": "19:30",
       "aktivitaeten": [],
