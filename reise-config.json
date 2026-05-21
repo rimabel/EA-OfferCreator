@@ -1,0 +1,13 @@
+{
+  "active": false,
+  "reise": {
+    "zielort": "",
+    "datum_hinfahrt": "",
+    "uhrzeit_abfahrt": "",
+    "abfahrtsort": "",
+    "anzahl_personen": 0,
+    "rueckkehr_datum": "",
+    "ansprechpartner": "",
+    "notizen": ""
+  }
+}
